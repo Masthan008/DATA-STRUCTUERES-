@@ -20,6 +20,13 @@ export const exitFullscreen = () => {
 };
 
 export const setupAntiCheat = (onViolation) => {
+  let suppressFullscreenViolation = true;
+  
+  // 2 second grace period on initialization to allow fullscreen entry
+  setTimeout(() => {
+    suppressFullscreenViolation = false;
+  }, 2000);
+
   const handleVisibilityChange = () => {
     if (document.hidden) {
       onViolation({ type: 'tab_switch', message: 'Switched tabs or minimized window' });
@@ -28,6 +35,13 @@ export const setupAntiCheat = (onViolation) => {
 
   const handleCopyPaste = (e) => {
     e.preventDefault();
+    if (e.type === 'paste') {
+      const pastedText = e.clipboardData?.getData('text') || '';
+      if (pastedText.length > 50) {
+        onViolation({ type: 'high_similarity_paste', message: `Pasted large block of code (${pastedText.length} chars)`, noFullscreenReentry: true });
+        return;
+      }
+    }
     onViolation({ type: 'copy_paste', message: 'Copy/Paste is disabled during the exam', noFullscreenReentry: true });
   };
 
@@ -37,6 +51,7 @@ export const setupAntiCheat = (onViolation) => {
   };
   
   const handleFullscreenChange = () => {
+    if (suppressFullscreenViolation) return;
     if (!document.fullscreenElement && !document.webkitIsFullScreen && !document.mozFullScreen && !document.msFullscreenElement) {
        onViolation({ type: 'fullscreen_exit', message: 'Exited fullscreen mode' });
     }

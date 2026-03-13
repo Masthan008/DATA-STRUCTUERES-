@@ -27,6 +27,7 @@ export const AdminProvider = ({ children }) => {
       setExamSettings({
         duration: statusData.exam_duration || 60,
         allowedDevice: statusData.allowed_device || 'desktop',
+        evaluation_mode: statusData.evaluation_mode || 'auto',
         exam_active: statusData.exam_active || false
       });
 

@@ -17,8 +17,9 @@ const api = {
     return res.json();
   },
 
-  async getRandomQuestions() {
-    const res = await fetch(`${API_BASE}/questions/random`);
+  async getRandomQuestions(studentId) {
+    const url = studentId ? `${API_BASE}/questions/random?student_id=${studentId}` : `${API_BASE}/questions/random`;
+    const res = await fetch(url);
     return res.json();
   },
 
@@ -31,12 +32,35 @@ const api = {
     return res.json();
   },
 
-  async submitCode({ student_id, question_id, code, output, status }) {
+  async submitCode({ student_id, question_id, code, output, status, score, evaluation_details }) {
     const res = await fetch(`${API_BASE}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ student_id, question_id, code, output, status })
+      body: JSON.stringify({ student_id, question_id, code, output, status, score, evaluation_details })
     });
+    return res.json();
+  },
+
+  async saveCode({ student_id, question_id, code }) {
+    const res = await fetch(`${API_BASE}/submissions/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id, question_id, code })
+    });
+    return res.json();
+  },
+
+  async submitFinalExam(student_id) {
+    const res = await fetch(`${API_BASE}/submissions/final`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id })
+    });
+    return res.json();
+  },
+
+  async getExamSummary(student_id) {
+    const res = await fetch(`${API_BASE}/student/exam-summary/${student_id}`);
     return res.json();
   },
 

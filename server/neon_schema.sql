@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS questions (
   description TEXT NOT NULL,
   sample_input TEXT NOT NULL,
   sample_output TEXT NOT NULL,
+  question_score INTEGER DEFAULT 10,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -81,6 +82,9 @@ CREATE TABLE IF NOT EXISTS submissions (
   output TEXT,
   status VARCHAR(50) NOT NULL,
   score INTEGER DEFAULT 0,
+  run_count INTEGER DEFAULT 0,
+  submission_count INTEGER DEFAULT 0,
+  score_awarded INTEGER,
   evaluation_details JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT now()
 );

@@ -11,7 +11,7 @@ const QuestionManagement = () => {
   const { questions, setQuestions } = useAdmin();
   const [isAdding, setIsAdding] = useState(false);
   const [newQuestion, setNewQuestion] = useState({ 
-    title: '', description: '', inputExample: '', outputExample: '', testCases: [{ input: '', expected_output: '', is_hidden: true }] 
+    title: '', description: '', inputExample: '', outputExample: '', question_score: 10, testCases: [{ input: '', expected_output: '', is_hidden: true }] 
   });
 
   const handleAdd = async (e) => {
@@ -21,7 +21,8 @@ const QuestionManagement = () => {
         title: newQuestion.title,
         description: newQuestion.description,
         sample_input: newQuestion.inputExample,
-        sample_output: newQuestion.outputExample
+        sample_output: newQuestion.outputExample,
+        question_score: parseInt(newQuestion.question_score, 10) || 10
       });
       if (data.question) {
         setQuestions([...questions, data.question]);
@@ -41,7 +42,7 @@ const QuestionManagement = () => {
     } catch (err) {
       console.error('Failed to add question:', err);
     }
-    setNewQuestion({ title: '', description: '', inputExample: '', outputExample: '', testCases: [{ input: '', expected_output: '', is_hidden: true }] });
+    setNewQuestion({ title: '', description: '', inputExample: '', outputExample: '', question_score: 10, testCases: [{ input: '', expected_output: '', is_hidden: true }] });
     setIsAdding(false);
   };
 
@@ -99,6 +100,9 @@ const QuestionManagement = () => {
                 <Input icon={ArrowRightLeft} label="Sample Input" required placeholder="e.g., [1,2,3,4,5]" value={newQuestion.inputExample} onChange={e => setNewQuestion({...newQuestion, inputExample: e.target.value})} />
                 <Input icon={ArrowRightLeft} label="Sample Output" required placeholder="e.g., [5,4,3,2,1]" value={newQuestion.outputExample} onChange={e => setNewQuestion({...newQuestion, outputExample: e.target.value})} />
               </div>
+              <div className="w-1/2">
+                <Input type="number" label="Marks / Score" required placeholder="10" value={newQuestion.question_score} onChange={e => setNewQuestion({...newQuestion, question_score: e.target.value})} />
+              </div>
 
               {/* Test Cases Section */}
               <div className="pt-4 border-t border-slate-100">
@@ -149,6 +153,7 @@ const QuestionManagement = () => {
               <TableHead>Title</TableHead>
               <TableHead>Sample Input</TableHead>
               <TableHead>Sample Output</TableHead>
+              <TableHead>Score</TableHead>
               <TableHead className="w-20 text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
@@ -164,6 +169,7 @@ const QuestionManagement = () => {
                 </TableCell>
                 <TableCell><code className="text-xs bg-slate-100 px-2 py-0.5 rounded">{q.sample_input || q.inputExample}</code></TableCell>
                 <TableCell><code className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">{q.sample_output || q.outputExample}</code></TableCell>
+                <TableCell><span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{q.question_score || 10}</span></TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="sm" onClick={() => handleDelete(q.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0">
                     <Trash2 size={15} />

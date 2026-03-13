@@ -20,6 +20,7 @@ const Results = () => {
     if (status === 'PASS' || status === 'Success' || status === 'Accepted') return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-100 text-emerald-700"><CheckCircle size={12} /> {status}</span>;
     if (status === 'FAIL' || status === 'Error' || status === 'Wrong Answer') return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-red-100 text-red-700"><XCircle size={12} /> {status}</span>;
     if (status === 'PARTIAL') return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-blue-100 text-blue-700"><CheckCircle size={12} /> PARTIAL</span>;
+    if (status?.includes('Pending')) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-indigo-100 text-indigo-700"><Clock size={12} /> {status}</span>;
     return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-100 text-amber-700"><Clock size={12} /> {status}</span>;
   };
 
@@ -79,8 +80,8 @@ const Results = () => {
                 <TableCell className="text-sm text-slate-700">{res.questions?.title || res.question_title}</TableCell>
                 <TableCell>{getStatusBadge(res.status)}</TableCell>
                 <TableCell>
-                  <span className={`font-bold text-sm ${res.score >= 50 ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    {res.score || 0} / 100
+                  <span className={`font-bold text-sm ${res.score >= 50 || res.score_awarded >= (res.question_score || 10) / 2 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    {res.score_awarded !== null ? res.score_awarded : (res.score || 0)} / {res.question_score || 10}
                   </span>
                 </TableCell>
                 <TableCell className="text-right">
@@ -187,13 +188,16 @@ const Results = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Score (0-100)</label>
-                    <input 
-                      type="number" 
-                      className="h-10 w-24 rounded-lg border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-brand-primary/30 outline-none"
-                      value={manualScore}
-                      onChange={(e) => setManualScore(e.target.value)}
-                    />
+                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Score Awarded</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="number" 
+                        className="h-10 w-24 rounded-lg border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-brand-primary/30 outline-none"
+                        value={manualScore}
+                        onChange={(e) => setManualScore(e.target.value)}
+                      />
+                      <span className="text-sm font-bold text-slate-500">/ {selectedSub.question_score || 10}</span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2">

@@ -7,6 +7,7 @@ import { AdminProvider } from './context/AdminContext';
 import StudentLogin from './pages/student/Login';
 import WaitingRoom from './pages/student/WaitingRoom';
 import ExamPage from './pages/student/Exam';
+import ExamSummary from './pages/student/ExamSummary';
 
 // Admin Pages
 import { AdminLayout } from './components/admin/AdminLayout';
@@ -31,6 +32,7 @@ const App = () => {
             <Route path="/student/login" element={<StudentLogin />} />
             <Route path="/student/waiting" element={<WaitingRoom />} />
             <Route path="/student/exam" element={<ExamPage />} />
+            <Route path="/student/exam-summary" element={<ExamSummary />} />
 
             {/* Admin Auth Route */}
             <Route path="/admin/login" element={<AdminLogin />} />

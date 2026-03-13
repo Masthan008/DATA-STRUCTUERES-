@@ -111,15 +111,15 @@ router.post('/admin/end-exam', async (req, res) => {
 // ─── POST /api/admin/add-question ──────────────────────────────────────
 router.post('/admin/add-question', async (req, res) => {
   try {
-    const { title, description, sample_input, sample_output } = req.body;
+    const { title, description, sample_input, sample_output, question_score } = req.body;
 
     if (!title || !description) {
       return res.status(400).json({ error: 'Title and description are required.' });
     }
 
     const question = await sql`
-      INSERT INTO questions (title, description, sample_input, sample_output)
-      VALUES (${title}, ${description}, ${sample_input || ''}, ${sample_output || ''})
+      INSERT INTO questions (title, description, sample_input, sample_output, question_score)
+      VALUES (${title}, ${description}, ${sample_input || ''}, ${sample_output || ''}, ${question_score || 10})
       RETURNING *
     `;
 
@@ -165,12 +165,12 @@ router.post('/admin/add-testcase', async (req, res) => {
 // ─── POST /api/admin/update-submission ─────────────────────────────────
 router.post('/admin/update-submission', async (req, res) => {
   try {
-    const { id, status, score } = req.body;
+    const { id, status, score_awarded } = req.body;
     if (!id || !status) return res.status(400).json({ error: 'id and status required' });
 
     await sql`
       UPDATE submissions
-      SET status = ${status}, score = ${score || 0}
+      SET status = ${status}, score_awarded = ${score_awarded || 0}
       WHERE id = ${id}
     `;
     res.json({ success: true, message: 'Submission manually updated.' });
@@ -239,7 +239,7 @@ router.get('/admin/violations', async (req, res) => {
 router.get('/admin/submissions', async (req, res) => {
   try {
     const submissions = await sql`
-      SELECT sub.*, s.name as student_name, s.regd_no, q.title as question_title
+      SELECT sub.*, s.name as student_name, s.regd_no, q.title as question_title, q.question_score as question_max_score
       FROM submissions sub
       LEFT JOIN students s ON sub.student_id = s.id
       LEFT JOIN questions q ON sub.question_id = q.id

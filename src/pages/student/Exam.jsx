@@ -8,24 +8,47 @@ import { ExamTimer } from '../../components/ExamTimer';
 import { Button } from '../../components/Button';
 import { setupAntiCheat, enterFullscreen, exitFullscreen } from '../../utils/antiCheat';
 import api from '../../utils/api';
-import { Play, Send, ShieldAlert, Code2, User, Hash, Monitor, CheckCircle } from 'lucide-react';
+import { Play, Send, ShieldAlert, Code2, User, Hash, Monitor, CheckCircle, Save, Menu } from 'lucide-react';
+import { cn as clsx } from '../../utils/clsx';
 
 const ExamPage = () => {
   const { student, examActive, setTimeRemaining, timeRemaining, addViolation, violations, endExamSession, questions } = useExam();
   const navigate = useNavigate();
 
   const DEFAULT_CODE = `#include <stdio.h>\n\nint main() {\n    return 0;\n}`;
-  const [code, setCode] = useState(sessionStorage.getItem('saved_code') || DEFAULT_CODE);
-  const [output, setOutput] = useState('');
-  const [isError, setIsError] = useState(false);
+  
+  // Multi-question state
+  const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
+  const [codePerQuestion, setCodePerQuestion] = useState({});
+  const [statusPerQuestion, setStatusPerQuestion] = useState({});
+  const [resultsPerQuestion, setResultsPerQuestion] = useState({});
+  
+  // UI state
   const [isRunning, setIsRunning] = useState(false);
   const [showViolationModal, setShowViolationModal] = useState(false);
   const [lastViolationMsg, setLastViolationMsg] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // Initialize Exam
+  // Initialize Exam & Load Saved States
   useEffect(() => {
-    if (!student || !examActive) return;
+    if (!student || !examActive || questions.length === 0) return;
     enterFullscreen();
+
+    // Load from session storage
+    const savedCode = JSON.parse(sessionStorage.getItem('exam_code_state')) || {};
+    const savedStatus = JSON.parse(sessionStorage.getItem('exam_status_state')) || {};
+    
+    // Initialize default states for questions if not exist
+    const initialCode = { ...savedCode };
+    const initialStatus = { ...savedStatus };
+    
+    questions.forEach(q => {
+      if (!initialCode[q.id]) initialCode[q.id] = DEFAULT_CODE;
+      if (!initialStatus[q.id]) initialStatus[q.id] = 'Not Attempted';
+    });
+    
+    setCodePerQuestion(initialCode);
+    setStatusPerQuestion(initialStatus);
 
     const cleanupAntiCheat = setupAntiCheat((violation) => {
       addViolation(violation);
@@ -35,9 +58,8 @@ const ExamPage = () => {
 
     return () => {
       cleanupAntiCheat();
-      exitFullscreen();
     };
-  }, [student, examActive]);
+  }, [student, examActive, questions]);
 
   // Timer Tick
   useEffect(() => {
@@ -47,7 +69,7 @@ const ExamPage = () => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          handleSubmit();
+          handleSubmitFinalExam();
           return 0;
         }
         return prev - 1;
@@ -59,79 +81,130 @@ const ExamPage = () => {
 
   // Auto Save
   useEffect(() => {
-    if (!examActive) return;
+    if (!examActive || Object.keys(codePerQuestion).length === 0) return;
     const saveInterval = setInterval(() => {
-      sessionStorage.setItem('saved_code', code);
-    }, 10000);
+      sessionStorage.setItem('exam_code_state', JSON.stringify(codePerQuestion));
+      sessionStorage.setItem('exam_status_state', JSON.stringify(statusPerQuestion));
+    }, 5000);
     return () => clearInterval(saveInterval);
-  }, [code, examActive]);
+  }, [codePerQuestion, statusPerQuestion, examActive]);
 
   if (!student) return <Navigate to="/student/login" replace />;
   if (!examActive) return <Navigate to="/student/waiting" replace />;
 
+  const currentQuestionId = questions[activeQuestionIndex]?.id;
+  const currentCode = codePerQuestion[currentQuestionId] || DEFAULT_CODE;
+  const currentOutput = resultsPerQuestion[currentQuestionId] || null;
+
+  const updateCurrentCode = (newCode) => {
+    setCodePerQuestion(prev => ({
+      ...prev,
+      [currentQuestionId]: newCode
+    }));
+  };
+
   const handleRunCode = async () => {
     setIsRunning(true);
-    setOutput('');
-    setIsError(false);
-
+    
     try {
       const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_code: code, language_id: 50 })
+        body: JSON.stringify({ source_code: currentCode, language_id: 50 })
       });
       
       const data = await response.json();
-
+      
+      let resData = { time: data.time };
+      
       if (data.compile_output) {
-        setIsError(true);
-        setOutput(data.compile_output);
+        resData.compileError = data.compile_output;
       } else if (data.stderr) {
-        setIsError(true);
-        setOutput(data.stderr);
+        resData.runtimeError = data.stderr;
       } else if (data.status?.id === 3) {
-        setIsError(false);
-        setOutput(data.stdout || 'Program exited with no output.');
+        resData.output = data.stdout || '';
       } else {
-        setIsError(true);
-        setOutput(data.message || `Runtime Error: ${data.status?.description}`);
+        resData.runtimeError = data.message || `Runtime Error: ${data.status?.description}`;
       }
+      
+      setResultsPerQuestion(prev => ({
+        ...prev,
+        [currentQuestionId]: resData
+      }));
+      
+      // Upsert run count in backend
+      await api.submitCode({
+        student_id: student.id,
+        question_id: currentQuestionId,
+        code: currentCode,
+        output: resData.output || resData.compileError || resData.runtimeError,
+        status: statusPerQuestion[currentQuestionId] === 'Submitted' ? 'Submitted' : 'Saved'
+      });
+      
+      if (statusPerQuestion[currentQuestionId] === 'Not Attempted') {
+        setStatusPerQuestion(prev => ({...prev, [currentQuestionId]: 'Saved'}));
+      }
+
     } catch (error) {
-      setIsError(true);
-      setOutput('Failed to connect to compilation server. Check network connection.');
+      setResultsPerQuestion(prev => ({
+        ...prev,
+        [currentQuestionId]: { runtimeError: 'Failed to connect to compilation server. Check network connection.' }
+      }));
     } finally {
       setIsRunning(false);
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSaveCode = async () => {
+    setIsRunning(true);
+    try {
+      await api.saveCode({
+        student_id: student.id,
+        question_id: currentQuestionId,
+        code: currentCode
+      });
+      setStatusPerQuestion(prev => ({
+        ...prev,
+        [currentQuestionId]: 'Saved'
+      }));
+      setResultsPerQuestion(prev => ({
+        ...prev,
+        [currentQuestionId]: { output: 'Code saved successfully.' }
+      }));
+    } catch (err) {
+      console.error(err);
+      setResultsPerQuestion(prev => ({
+        ...prev,
+        [currentQuestionId]: { runtimeError: 'Failed to save code to server.' }
+      }));
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const handleSubmitQuestion = async () => {
     setIsRunning(true);
     let finalStatus = 'Submitted';
     let finalScore = 0;
     let evalDetails = [];
     
     try {
-      // Fetch settings to check evaluation mode
       const settingsRaw = await api.getExamStatus();
       const isAutoEval = settingsRaw.evaluation_mode === 'auto';
       
-      const questionId = questions[0]?.id;
-      
-      if (isAutoEval && questionId) {
+      if (isAutoEval && currentQuestionId) {
         // Fetch test cases
-        const tcRes = await fetch(`http://localhost:5000/api/questions/${questionId}/testcases`);
+        const tcRes = await fetch(`http://localhost:5000/api/questions/${currentQuestionId}/testcases`);
         const tcData = await tcRes.json();
         const testcases = tcData.testcases || [];
         
         if (testcases.length > 0) {
           let passedCt = 0;
-          
           for (let tc of testcases) {
-            // Run Judge0
             const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ source_code: code, language_id: 50, stdin: tc.input })
+              body: JSON.stringify({ source_code: currentCode, language_id: 50, stdin: tc.input })
             });
             const result = await response.json();
             
@@ -157,26 +230,51 @@ const ExamPage = () => {
 
       await api.submitCode({
         student_id: student.id,
-        question_id: questionId,
-        code,
-        output: isAutoEval ? (evalDetails.length ? evalDetails[0].actual : output) : output,
-        status: isAutoEval ? finalStatus : (isError ? 'Error' : 'Success'),
+        question_id: currentQuestionId,
+        code: currentCode,
+        output: isAutoEval ? (evalDetails.length ? evalDetails[0].actual : currentOutput?.output) : currentOutput?.output,
+        status: isAutoEval ? finalStatus : 'Pending Admin Evaluation',
         score: finalScore,
         evaluation_details: evalDetails
       });
+      
+      setStatusPerQuestion(prev => ({
+        ...prev,
+        [currentQuestionId]: 'Submitted'
+      }));
+      
+      setResultsPerQuestion(prev => ({
+        ...prev,
+        [currentQuestionId]: { output: 'Question submitted successfully.' }
+      }));
       
     } catch (err) {
       console.error('Submission failed:', err);
     } finally {
       setIsRunning(false);
-      setIsError(false);
-      setOutput('Code submitted successfully.');
-      
-      endExamSession();
-      sessionStorage.removeItem('saved_code');
-      
-      navigate('/student/submitted');
     }
+  };
+
+  const handleSubmitFinalExam = async () => {
+    setIsRunning(true);
+    try {
+      await api.submitFinalExam(student.id);
+      sessionStorage.removeItem('exam_code_state');
+      sessionStorage.removeItem('exam_status_state');
+      // Keep student in storage to view summary page
+      
+      exitFullscreen();
+      navigate('/student/exam-summary');
+    } catch (err) {
+      console.error(err);
+      setIsRunning(false);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    if (status === 'Submitted') return 'bg-emerald-50 text-emerald-600 border-emerald-200';
+    if (status === 'Saved') return 'bg-blue-50 text-blue-600 border-blue-200';
+    return 'bg-slate-50 text-slate-500 border-slate-200';
   };
 
   return (
@@ -212,14 +310,20 @@ const ExamPage = () => {
         </div>
       )}
 
-      {/* Top Navbar — HackerRank style */}
+      {/* Top Navbar */}
       <header className="h-12 bg-white border-b border-slate-200/80 flex items-center justify-between px-4 shrink-0 z-50">
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-1.5 hover:bg-slate-100 rounded text-slate-600 transition-colors"
+          >
+            <Menu size={18} />
+          </button>
           <div className="flex bg-gradient-to-br from-brand-primary to-brand-accent text-white p-1.5 rounded-lg">
             <Code2 size={16} />
           </div>
           <div className="flex items-center gap-2">
-            <h1 className="text-sm font-bold text-slate-900">{questions[0]?.title || 'Exam'}</h1>
+            <h1 className="text-sm font-bold text-slate-900">Secure Exam Portal</h1>
             <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">LIVE</span>
           </div>
         </div>
@@ -233,6 +337,9 @@ const ExamPage = () => {
             <span className="flex items-center gap-1"><Monitor size={12} /> {student.system_no || student.systemNo}</span>
           </div>
           <ExamTimer />
+          <Button onClick={handleSubmitFinalExam} variant="primary" className="h-8 text-xs font-bold shadow-glow-blue border border-brand-primary">
+            Submit Final Exam
+          </Button>
         </div>
       </header>
 
@@ -250,28 +357,88 @@ const ExamPage = () => {
         </div>
       </div>
       
-      {/* Main Content — Split View */}
+      {/* Main Content */}
       <main className="flex-1 flex overflow-hidden">
-        {/* Left: Question Panel (40%) */}
-        <div className="w-[40%] min-w-[300px] h-full">
-          <QuestionPanel question={questions[0]} />
+        
+        {/* Navigation Sidebar */}
+        {isSidebarOpen && (
+          <div className="w-56 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 animate-fade-in">
+            <div className="p-4 border-b border-slate-200 bg-white">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Questions ({questions.length})</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {questions.map((q, idx) => {
+                const status = statusPerQuestion[q.id] || 'Not Attempted';
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => setActiveQuestionIndex(idx)}
+                    className={clsx(
+                      "w-full text-left p-3 rounded-lg text-sm transition-all border outline-none flex flex-col gap-2",
+                      activeQuestionIndex === idx 
+                        ? "bg-white border-brand-primary shadow-sm ring-1 ring-brand-primary/20" 
+                        : "bg-transparent border-transparent hover:bg-slate-100 hover:border-slate-200"
+                    )}
+                  >
+                    <div className="flex justify-between items-center w-full">
+                      <span className={clsx("font-semibold", activeQuestionIndex === idx ? "text-slate-900" : "text-slate-600")}>
+                        Question {idx + 1}
+                      </span>
+                      {status === 'Submitted' && <CheckCircle size={14} className="text-emerald-500" />}
+                    </div>
+                    <span className={clsx("text-[10px] px-1.5 py-0.5 rounded-md border inline-block w-fit font-semibold", getStatusColor(status))}>
+                      {status}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Left: Question Panel */}
+        <div className="w-[35%] min-w-[300px] h-full shadow-[1px_0_10px_rgba(0,0,0,0.05)] z-10 transition-all">
+          <QuestionPanel question={questions[activeQuestionIndex]} />
         </div>
 
-        {/* Right: Editor + Console (60%) */}
-        <div className="flex-1 flex flex-col h-full bg-[#0d1117]">
-          <CodeEditor code={code} setCode={setCode} />
+        {/* Right: Editor + Console */}
+        <div className="flex-1 flex flex-col h-full bg-[#0d1117] min-w-[400px]">
+          <CodeEditor code={currentCode} setCode={updateCurrentCode} />
           
           {/* Action Bar */}
-          <div className="bg-[#161b22] px-4 py-2 flex justify-end gap-2 border-t border-[#21262d]">
-            <Button variant="outline" onClick={handleRunCode} disabled={isRunning} className="h-8 text-xs bg-[#21262d] border-[#30363d] text-slate-300 hover:bg-[#30363d] gap-1.5">
-              <Play size={13} /> Run Code
-            </Button>
-            <Button onClick={handleSubmit} className="h-8 text-xs gap-1.5" variant="success">
-              <Send size={13} /> Submit
-            </Button>
+          <div className="bg-[#161b22] px-4 py-2 flex justify-between items-center border-t border-[#21262d]">
+            <div className="text-xs text-slate-500 font-semibold space-x-4">
+              <span>{Math.max(0, currentCode.split('\n').length)} Lines</span>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={handleSaveCode} 
+                disabled={isRunning} 
+                className="h-8 text-xs bg-[#21262d] border-[#30363d] text-slate-300 hover:bg-[#30363d] gap-1.5"
+              >
+                <Save size={13} /> Save Code
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleRunCode} 
+                disabled={isRunning} 
+                className="h-8 text-xs bg-[#21262d] border-[#30363d] text-slate-300 hover:bg-[#30363d] gap-1.5"
+              >
+                <Play size={13} /> Run Code
+              </Button>
+              <Button 
+                onClick={handleSubmitQuestion} 
+                disabled={isRunning || statusPerQuestion[currentQuestionId] === 'Submitted'} 
+                className="h-8 text-xs gap-1.5 min-w-[120px]" 
+                variant="success"
+              >
+                {statusPerQuestion[currentQuestionId] === 'Submitted' ? 'Submitted ✓' : <><Send size={13} /> Submit Question</>}
+              </Button>
+            </div>
           </div>
           
-          <OutputConsole output={output} isRunning={isRunning} isError={isError} />
+          <OutputConsole outputData={currentOutput} isRunning={isRunning} isError={false} />
         </div>
       </main>
     </div>

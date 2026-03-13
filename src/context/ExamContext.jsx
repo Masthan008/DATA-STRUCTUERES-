@@ -6,6 +6,7 @@ const ExamContext = createContext();
 export const ExamProvider = ({ children }) => {
   const [student, setStudent] = useState(() => JSON.parse(sessionStorage.getItem('exam_student')) || null);
   const [examActive, setExamActive] = useState(() => JSON.parse(sessionStorage.getItem('exam_active')) || false);
+  const [examSubmitted, setExamSubmitted] = useState(() => JSON.parse(sessionStorage.getItem('exam_submitted')) || false);
   const [violations, setViolations] = useState(() => JSON.parse(sessionStorage.getItem('exam_violations')) || []);
   const [timeRemaining, setTimeRemaining] = useState(() => Number(sessionStorage.getItem('exam_timeRemaining')) || 0);
   const [questions, setQuestions] = useState(() => JSON.parse(sessionStorage.getItem('exam_questions')) || []);
@@ -13,6 +14,7 @@ export const ExamProvider = ({ children }) => {
   // Sync local state to sessionStorage
   useEffect(() => sessionStorage.setItem('exam_student', JSON.stringify(student)), [student]);
   useEffect(() => sessionStorage.setItem('exam_active', JSON.stringify(examActive)), [examActive]);
+  useEffect(() => sessionStorage.setItem('exam_submitted', JSON.stringify(examSubmitted)), [examSubmitted]);
   useEffect(() => sessionStorage.setItem('exam_violations', JSON.stringify(violations)), [violations]);
   useEffect(() => sessionStorage.setItem('exam_timeRemaining', timeRemaining.toString()), [timeRemaining]);
   useEffect(() => sessionStorage.setItem('exam_questions', JSON.stringify(questions)), [questions]);
@@ -50,8 +52,8 @@ export const ExamProvider = ({ children }) => {
 
       setStudent(data.student);
 
-      // Fetch random questions for the student session
-      const qData = await api.getRandomQuestions();
+      // Fetch random questions for the student session using their ID as the random seed
+      const qData = await api.getRandomQuestions(data.student.id);
       if (qData.questions) {
         setQuestions(qData.questions);
       }
@@ -85,21 +87,28 @@ export const ExamProvider = ({ children }) => {
 
   const endExamSession = () => {
     setExamActive(false);
-    setStudent(null);
-    setViolations([]);
-    setTimeRemaining(0);
-    setQuestions([]);
-    sessionStorage.removeItem('exam_student');
+    setExamSubmitted(true);
+    // Deliberately keep student session active so they can view the summary page
     sessionStorage.removeItem('exam_active');
-    sessionStorage.removeItem('exam_violations');
-    sessionStorage.removeItem('exam_timeRemaining');
-    sessionStorage.removeItem('exam_questions');
+    sessionStorage.setItem('exam_submitted', 'true');
+  };
+  
+  const logout = () => {
+    setStudent(null);
+    setExamActive(false);
+    setExamSubmitted(false);
+    setQuestions([]);
+    setViolations([]);
+    
+    // Clear all storage
+    sessionStorage.clear();
   };
   
   return (
     <ExamContext.Provider value={{
-      student, loginStudent,
+      student, loginStudent, logout,
       examActive, setExamActive,
+      examSubmitted,
       violations, addViolation,
       timeRemaining, setTimeRemaining,
       questions,

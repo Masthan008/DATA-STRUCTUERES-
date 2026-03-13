@@ -1,12 +1,36 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { FileQuestion } from 'lucide-react';
 
 export const QuestionPanel = ({ question }) => {
+  const [showFallback, setShowFallback] = useState(false);
+  
+  useEffect(() => {
+    if (!question) {
+      const timer = setTimeout(() => setShowFallback(true), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [question]);
+
   if (!question) {
     return (
       <div className="h-full flex items-center justify-center bg-white">
-        <div className="text-center space-y-2">
-          <div className="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-slate-400 text-sm">Loading question...</p>
+        <div className="text-center space-y-2 px-6">
+          {!showFallback ? (
+            <>
+              <div className="w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-slate-400 text-sm">Loading question...</p>
+            </>
+          ) : (
+            <div className="animate-fade-in text-center flex flex-col items-center">
+               <div className="w-12 h-12 bg-slate-50 text-slate-300 rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 mb-3">
+                 <FileQuestion size={24} />
+               </div>
+               <p className="font-bold text-slate-800">Exam Preparing</p>
+               <p className="text-slate-500 text-sm leading-relaxed max-w-[200px] mt-2">
+                 Questions will appear here once the exam begins or loads.
+               </p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -21,7 +45,7 @@ export const QuestionPanel = ({ question }) => {
         </div>
         <div className="flex gap-2">
           <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">Easy</span>
-          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200">10 Points</span>
+          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200">{question.question_score || 10} Points</span>
           <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-xs font-semibold border border-purple-200">Data Structures</span>
         </div>
       </div>

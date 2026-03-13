@@ -68,6 +68,7 @@ router.get('/exam/status', async (req, res) => {
       exam_duration: s.exam_duration,
       allowed_device: s.allowed_device,
       exam_start_time: s.exam_start_time,
+      evaluation_mode: s.evaluation_mode,
       remaining_time
     });
   } catch (error) {
@@ -77,10 +78,15 @@ router.get('/exam/status', async (req, res) => {
 });
 
 // ─── GET /api/questions/random ─────────────────────────────────────────
-// Return 4 random questions for the student.
+// Return stable random questions for the student.
 router.get('/questions/random', async (req, res) => {
   try {
-    const questions = await sql`SELECT * FROM questions ORDER BY RANDOM() LIMIT 4`;
+    const studentId = req.query.student_id || 'default';
+    const questions = await sql`
+      SELECT * FROM questions 
+      ORDER BY MD5(id::text || ${studentId}::text) 
+      LIMIT 4
+    `;
     res.json({ questions });
   } catch (error) {
     console.error('Random questions error:', error);
@@ -132,7 +138,7 @@ router.post('/violations', async (req, res) => {
 });
 
 // ─── POST /api/submissions ─────────────────────────────────────────────
-// Save student code submission. Prevent duplicate per question.
+// Save student code submission. Also works for saving without grading.
 router.post('/submissions', async (req, res) => {
   try {
     const { student_id, question_id, code, output, status, score, evaluation_details } = req.body;
@@ -141,33 +147,154 @@ router.post('/submissions', async (req, res) => {
       return res.status(400).json({ error: 'student_id, question_id, and code are required.' });
     }
 
-    // Prevent duplicate submission for same student + question
+    const detailsJson = evaluation_details ? JSON.stringify(evaluation_details) : '[]';
+
     const existing = await sql`
       SELECT * FROM submissions WHERE student_id = ${student_id} AND question_id = ${question_id}
     `;
+
     if (existing.length > 0) {
-      return res.status(409).json({ error: 'You have already submitted for this question.' });
+      // Upsert
+      const submission = await sql`
+        UPDATE submissions
+        SET code = ${code},
+            output = ${output || ''},
+            status = ${status || 'Submitted'},
+            score = ${score || 0},
+            run_count = run_count + 1,
+            submission_count = submission_count + 1,
+            evaluation_details = ${detailsJson}
+        WHERE id = ${existing[0].id}
+        RETURNING *
+      `;
+      return res.json({ submission: submission[0] });
+    } else {
+      // Insert
+      const submission = await sql`
+        INSERT INTO submissions (student_id, question_id, code, output, status, score, run_count, submission_count, evaluation_details)
+        VALUES (
+          ${student_id}, 
+          ${question_id}, 
+          ${code}, 
+          ${output || ''}, 
+          ${status || 'Submitted'},
+          ${score || 0},
+          1,
+          1,
+          ${detailsJson}
+        )
+        RETURNING *
+      `;
+      return res.status(201).json({ submission: submission[0] });
     }
-
-    const detailsJson = evaluation_details ? JSON.stringify(evaluation_details) : '[]';
-
-    const submission = await sql`
-      INSERT INTO submissions (student_id, question_id, code, output, status, score, evaluation_details)
-      VALUES (
-        ${student_id}, 
-        ${question_id}, 
-        ${code}, 
-        ${output || ''}, 
-        ${status || 'Submitted'},
-        ${score || 0},
-        ${detailsJson}
-      )
-      RETURNING *
-    `;
-
-    res.status(201).json({ submission: submission[0] });
   } catch (error) {
     console.error('Submission error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─── POST /api/submissions/save ────────────────────────────────────────
+// Save student code submission without grading yet. Just saves work in progress.
+router.post('/submissions/save', async (req, res) => {
+  try {
+    const { student_id, question_id, code } = req.body;
+
+    if (!student_id || !question_id || !code) {
+      return res.status(400).json({ error: 'student_id, question_id, and code are required.' });
+    }
+
+    const existing = await sql`
+      SELECT * FROM submissions WHERE student_id = ${student_id} AND question_id = ${question_id}
+    `;
+
+    if (existing.length > 0) {
+      // Upsert check: only update if it is not already finally submitted.
+      const submission = await sql`
+        UPDATE submissions
+        SET code = ${code},
+            status = CASE WHEN status = 'Saved' OR status = 'Pending Administration' THEN 'Saved' ELSE status END,
+            submission_count = submission_count + 1
+        WHERE id = ${existing[0].id}
+        RETURNING *
+      `;
+      return res.json({ submission: submission[0] });
+    } else {
+      const submission = await sql`
+        INSERT INTO submissions (student_id, question_id, code, status, submission_count)
+        VALUES (${student_id}, ${question_id}, ${code}, 'Saved', 1)
+        RETURNING *
+      `;
+      return res.status(201).json({ submission: submission[0] });
+    }
+
+  } catch (error) {
+    console.error('Save submission error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─── POST /api/submissions/final ───────────────────────────────────────
+// Mark all answers as final
+router.post('/submissions/final', async (req, res) => {
+  try {
+    const { student_id } = req.body;
+    if (!student_id) return res.status(400).json({ error: 'student_id is required' });
+
+    await sql`
+      UPDATE students SET exam_started = false WHERE id = ${student_id}
+    `;
+
+    res.json({ message: 'Exam finally submitted' });
+  } catch (err) {
+    console.error('Final submit error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─── GET /api/student/exam-summary/:id ─────────────────────────────────
+// Get summary for the exam submitted page
+router.get('/student/exam-summary/:id', async (req, res) => {
+  try {
+    const student_id = req.params.id;
+    
+    // Get student details
+    const studentData = await sql`SELECT * FROM students WHERE id = ${student_id}`;
+    if (studentData.length === 0) return res.status(404).json({ error: 'Student not found' });
+    const student = studentData[0];
+    
+    // Total questions logic: For now we return 4 because getRandomQuestions limits to 4. 
+    // Usually it would check the questions table explicitly or get the subset assigned.
+    const questionsAssignedData = await sql`
+      SELECT id FROM questions 
+      ORDER BY MD5(id::text || ${student_id}::text) 
+      LIMIT 4
+    `;
+    const totalQuestions = questionsAssignedData.length;
+    
+    const attemptsData = await sql`
+      SELECT COUNT(*) as attempt_count, COALESCE(SUM(run_count), 0) as total_runs, COALESCE(SUM(submission_count), 0) as total_subs
+      FROM submissions 
+      WHERE student_id = ${student_id}
+    `;
+    
+    const attemptedCount = parseInt(attemptsData[0].attempt_count, 10);
+    const unattemptedCount = totalQuestions - attemptedCount;
+    const totalRuns = parseInt(attemptsData[0].total_runs, 10);
+    const totalSubs = parseInt(attemptsData[0].total_subs, 10);
+
+    res.json({
+      student_name: student.name,
+      regd_no: student.regd_no,
+      system_no: student.system_no,
+      total_questions: totalQuestions,
+      attempted_questions: attemptedCount,
+      unattempted_questions: unattemptedCount,
+      total_runs: totalRuns,
+      total_submissions: totalSubs
+    });
+
+  } catch (err) {
+    console.error('Exam summary error:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });
