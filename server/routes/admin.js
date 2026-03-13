@@ -141,22 +141,63 @@ router.delete('/admin/delete-question/:id', async (req, res) => {
   }
 });
 
+// ─── POST /api/admin/add-testcase ──────────────────────────────────────
+router.post('/admin/add-testcase', async (req, res) => {
+  try {
+    const { question_id, input, expected_output, is_hidden } = req.body;
+    
+    if (!question_id || input === undefined || expected_output === undefined) {
+      return res.status(400).json({ error: 'question_id, input, and expected_output required.' });
+    }
+
+    const testcase = await sql`
+      INSERT INTO test_cases (question_id, input, expected_output, is_hidden)
+      VALUES (${question_id}, ${input}, ${expected_output}, ${is_hidden ?? true})
+      RETURNING *
+    `;
+    res.status(201).json({ testcase: testcase[0] });
+  } catch (err) {
+    console.error('Add testcase error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─── POST /api/admin/update-submission ─────────────────────────────────
+router.post('/admin/update-submission', async (req, res) => {
+  try {
+    const { id, status, score } = req.body;
+    if (!id || !status) return res.status(400).json({ error: 'id and status required' });
+
+    await sql`
+      UPDATE submissions
+      SET status = ${status}, score = ${score || 0}
+      WHERE id = ${id}
+    `;
+    res.json({ success: true, message: 'Submission manually updated.' });
+  } catch (err) {
+    console.error('Update submission error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 // ─── POST /api/admin/update-settings ───────────────────────────────────
 router.post('/admin/update-settings', async (req, res) => {
   try {
-    const { exam_duration, allowed_device } = req.body;
+    const { exam_duration, allowed_device, evaluation_mode } = req.body;
     const settings = await sql`SELECT id FROM exam_settings LIMIT 1`;
 
     if (settings.length > 0) {
       await sql`
         UPDATE exam_settings
-        SET exam_duration = ${exam_duration}, allowed_device = ${allowed_device}
+        SET exam_duration = ${exam_duration}, 
+            allowed_device = ${allowed_device},
+            evaluation_mode = ${evaluation_mode || 'auto'}
         WHERE id = ${settings[0].id}
       `;
     } else {
       await sql`
-        INSERT INTO exam_settings (exam_duration, allowed_device)
-        VALUES (${exam_duration}, ${allowed_device})
+        INSERT INTO exam_settings (exam_duration, allowed_device, evaluation_mode)
+        VALUES (${exam_duration}, ${allowed_device}, ${evaluation_mode || 'auto'})
       `;
     }
 

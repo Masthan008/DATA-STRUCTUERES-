@@ -28,7 +28,7 @@ export const setupAntiCheat = (onViolation) => {
 
   const handleCopyPaste = (e) => {
     e.preventDefault();
-    onViolation({ type: 'copy_paste', message: 'Copy/Paste is disabled during the exam' });
+    onViolation({ type: 'copy_paste', message: 'Copy/Paste is disabled during the exam', noFullscreenReentry: true });
   };
 
   const handleContextMenu = (e) => {

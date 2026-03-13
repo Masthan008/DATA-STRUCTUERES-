@@ -88,11 +88,29 @@ const api = {
     return res.json();
   },
 
-  async updateSettings({ exam_duration, allowed_device }) {
+  async updateSettings({ exam_duration, allowed_device, evaluation_mode }) {
     const res = await fetch(`${API_BASE}/admin/update-settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exam_duration, allowed_device })
+      body: JSON.stringify({ exam_duration, allowed_device, evaluation_mode })
+    });
+    return res.json();
+  },
+
+  async addTestcase({ question_id, input, expected_output, is_hidden }) {
+    const res = await fetch(`${API_BASE}/admin/add-testcase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question_id, input, expected_output, is_hidden })
+    });
+    return res.json();
+  },
+
+  async updateSubmission({ id, status, score }) {
+    const res = await fetch(`${API_BASE}/admin/update-submission`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status, score })
     });
     return res.json();
   },

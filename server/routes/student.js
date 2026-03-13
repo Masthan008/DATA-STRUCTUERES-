@@ -88,6 +88,22 @@ router.get('/questions/random', async (req, res) => {
   }
 });
 
+// ─── GET /api/questions/:id/testcases ──────────────────────────────────
+router.get('/questions/:id/testcases', async (req, res) => {
+  try {
+    const testcases = await sql`
+      SELECT id, input, expected_output, is_hidden 
+      FROM test_cases 
+      WHERE question_id = ${req.params.id}
+      ORDER BY created_at ASC
+    `;
+    res.json({ testcases });
+  } catch (error) {
+    console.error('Get testcases error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 // ─── POST /api/violations ──────────────────────────────────────────────
 // Log cheating attempt. Increment student violation count.
 router.post('/violations', async (req, res) => {
@@ -119,7 +135,7 @@ router.post('/violations', async (req, res) => {
 // Save student code submission. Prevent duplicate per question.
 router.post('/submissions', async (req, res) => {
   try {
-    const { student_id, question_id, code, output, status } = req.body;
+    const { student_id, question_id, code, output, status, score, evaluation_details } = req.body;
 
     if (!student_id || !question_id || !code) {
       return res.status(400).json({ error: 'student_id, question_id, and code are required.' });
@@ -133,9 +149,19 @@ router.post('/submissions', async (req, res) => {
       return res.status(409).json({ error: 'You have already submitted for this question.' });
     }
 
+    const detailsJson = evaluation_details ? JSON.stringify(evaluation_details) : '[]';
+
     const submission = await sql`
-      INSERT INTO submissions (student_id, question_id, code, output, status)
-      VALUES (${student_id}, ${question_id}, ${code}, ${output || ''}, ${status || 'Submitted'})
+      INSERT INTO submissions (student_id, question_id, code, output, status, score, evaluation_details)
+      VALUES (
+        ${student_id}, 
+        ${question_id}, 
+        ${code}, 
+        ${output || ''}, 
+        ${status || 'Submitted'},
+        ${score || 0},
+        ${detailsJson}
+      )
       RETURNING *
     `;
 

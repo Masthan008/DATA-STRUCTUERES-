@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS admins (
 CREATE TABLE IF NOT EXISTS exam_settings (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   exam_active BOOLEAN DEFAULT false,
+  evaluation_mode VARCHAR(20) DEFAULT 'auto',
   allowed_device VARCHAR(50) DEFAULT 'desktop',
   exam_duration INTEGER DEFAULT 120,
   exam_start_time TIMESTAMPTZ,
@@ -52,6 +53,16 @@ CREATE TABLE IF NOT EXISTS questions (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 3.5 Table: test_cases
+CREATE TABLE IF NOT EXISTS test_cases (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  question_id UUID REFERENCES questions(id) ON DELETE CASCADE,
+  input TEXT NOT NULL,
+  expected_output TEXT NOT NULL,
+  is_hidden BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- 4. Table: violations
 CREATE TABLE IF NOT EXISTS violations (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -69,5 +80,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   code TEXT NOT NULL,
   output TEXT,
   status VARCHAR(50) NOT NULL,
+  score INTEGER DEFAULT 0,
+  evaluation_details JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT now()
 );

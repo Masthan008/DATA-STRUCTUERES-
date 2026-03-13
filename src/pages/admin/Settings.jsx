@@ -15,7 +15,8 @@ const Settings = () => {
     try {
       await api.updateSettings({
         exam_duration: localSettings.duration,
-        allowed_device: localSettings.allowedDevice
+        allowed_device: localSettings.allowedDevice,
+        evaluation_mode: localSettings.evaluation_mode || 'auto'
       });
     } catch (err) {
       console.error('Failed to save settings:', err);
@@ -57,6 +58,21 @@ const Settings = () => {
                   <option value="desktop">Desktop Only</option>
                   <option value="mobile">Mobile Only</option>
                   <option value="both">Both (Desktop & Mobile)</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">Evaluation Mode</label>
+              <div className="relative">
+                <CheckCircle size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <select 
+                  className="flex h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-all duration-200 shadow-sm hover:border-slate-300 appearance-none cursor-pointer"
+                  value={localSettings.evaluation_mode}
+                  onChange={e => setLocalSettings({...localSettings, evaluation_mode: e.target.value})}
+                >
+                  <option value="auto">Automatic (Judge0 + Test Cases)</option>
+                  <option value="manual">Manual (Admin reviews code)</option>
                 </select>
               </div>
             </div>

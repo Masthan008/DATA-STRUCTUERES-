@@ -105,28 +105,78 @@ const ExamPage = () => {
   };
 
   const handleSubmit = async () => {
+    setIsRunning(true);
+    let finalStatus = 'Submitted';
+    let finalScore = 0;
+    let evalDetails = [];
+    
     try {
+      // Fetch settings to check evaluation mode
+      const settingsRaw = await api.getExamStatus();
+      const isAutoEval = settingsRaw.evaluation_mode === 'auto';
+      
+      const questionId = questions[0]?.id;
+      
+      if (isAutoEval && questionId) {
+        // Fetch test cases
+        const tcRes = await fetch(`http://localhost:5000/api/questions/${questionId}/testcases`);
+        const tcData = await tcRes.json();
+        const testcases = tcData.testcases || [];
+        
+        if (testcases.length > 0) {
+          let passedCt = 0;
+          
+          for (let tc of testcases) {
+            // Run Judge0
+            const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ source_code: code, language_id: 50, stdin: tc.input })
+            });
+            const result = await response.json();
+            
+            const actualOut = (result.stdout || '').trim();
+            const expectedOut = (tc.expected_output || '').trim();
+            const passed = (result.status?.id === 3) && (actualOut === expectedOut);
+            
+            if (passed) passedCt++;
+            
+            evalDetails.push({
+              input: tc.input,
+              expected: expectedOut,
+              actual: actualOut,
+              status: passed ? 'Pass' : 'Fail',
+              error: result.stderr || result.compile_output || null
+            });
+          }
+          
+          finalScore = Math.round((passedCt / testcases.length) * 100);
+          finalStatus = passedCt === testcases.length ? 'PASS' : 'FAIL';
+        }
+      }
+
       await api.submitCode({
         student_id: student.id,
-        question_id: questions[0]?.id,
+        question_id: questionId,
         code,
-        output,
-        status: isError ? 'Error' : 'Success'
+        output: isAutoEval ? (evalDetails.length ? evalDetails[0].actual : output) : output,
+        status: isAutoEval ? finalStatus : (isError ? 'Error' : 'Success'),
+        score: finalScore,
+        evaluation_details: evalDetails
       });
+      
     } catch (err) {
       console.error('Submission failed:', err);
+    } finally {
+      setIsRunning(false);
+      setIsError(false);
+      setOutput('Code submitted successfully.');
+      
+      endExamSession();
+      sessionStorage.removeItem('saved_code');
+      
+      navigate('/student/submitted');
     }
-    
-    setIsError(false);
-    setOutput('Code submitted successfully.');
-    
-    endExamSession();
-    sessionStorage.removeItem('saved_code');
-
-    setTimeout(() => {
-      alert('Exam submitted successfully!');
-      navigate('/');
-    }, 1500);
   };
 
   return (
