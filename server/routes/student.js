@@ -1,0 +1,149 @@
+import { Router } from 'express';
+import sql from '../db.js';
+
+const router = Router();
+
+// ─── POST /api/student/login ───────────────────────────────────────────
+// Register student session. Prevents duplicate regd_no. Enforces device restriction.
+router.post('/student/login', async (req, res) => {
+  try {
+    const { name, regd_no, system_no, device_type } = req.body;
+
+    // Validate input
+    if (!name || !regd_no || !system_no || !device_type) {
+      return res.status(400).json({ error: 'All fields are required.' });
+    }
+
+    // Check device restriction from exam_settings
+    const settings = await sql`SELECT * FROM exam_settings LIMIT 1`;
+    if (settings.length > 0) {
+      const allowed = settings[0].allowed_device;
+      if (allowed !== 'both' && allowed !== device_type) {
+        return res.status(403).json({ error: 'Device not permitted for this exam.' });
+      }
+    }
+
+    // Check for duplicate regd_no
+    const existing = await sql`SELECT * FROM students WHERE regd_no = ${regd_no}`;
+    if (existing.length > 0) {
+      // Return existing student session
+      return res.json({ student: existing[0], message: 'Session restored.' });
+    }
+
+    // Create new student record
+    const result = await sql`
+      INSERT INTO students (name, regd_no, system_no, device_type, exam_started, violations)
+      VALUES (${name}, ${regd_no}, ${system_no}, ${device_type}, true, 0)
+      RETURNING *
+    `;
+
+    res.status(201).json({ student: result[0], message: 'Login successful.' });
+  } catch (error) {
+    console.error('Student login error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─── GET /api/exam/status ──────────────────────────────────────────────
+// Check if exam is active. Returns timer info.
+router.get('/exam/status', async (req, res) => {
+  try {
+    const settings = await sql`SELECT * FROM exam_settings LIMIT 1`;
+    if (settings.length === 0) {
+      return res.json({ exam_active: false });
+    }
+
+    const s = settings[0];
+    let remaining_time = null;
+
+    if (s.exam_active && s.exam_start_time) {
+      const startMs = new Date(s.exam_start_time).getTime();
+      const durationMs = s.exam_duration * 60 * 1000;
+      const nowMs = Date.now();
+      remaining_time = Math.max(0, Math.floor((startMs + durationMs - nowMs) / 1000));
+    }
+
+    res.json({
+      exam_active: s.exam_active,
+      exam_duration: s.exam_duration,
+      allowed_device: s.allowed_device,
+      exam_start_time: s.exam_start_time,
+      remaining_time
+    });
+  } catch (error) {
+    console.error('Exam status error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─── GET /api/questions/random ─────────────────────────────────────────
+// Return 4 random questions for the student.
+router.get('/questions/random', async (req, res) => {
+  try {
+    const questions = await sql`SELECT * FROM questions ORDER BY RANDOM() LIMIT 4`;
+    res.json({ questions });
+  } catch (error) {
+    console.error('Random questions error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─── POST /api/violations ──────────────────────────────────────────────
+// Log cheating attempt. Increment student violation count.
+router.post('/violations', async (req, res) => {
+  try {
+    const { student_id, regd_no, violation_type } = req.body;
+
+    if (!student_id || !violation_type) {
+      return res.status(400).json({ error: 'student_id and violation_type are required.' });
+    }
+
+    // Insert violation record
+    const violation = await sql`
+      INSERT INTO violations (student_id, regd_no, violation_type)
+      VALUES (${student_id}, ${regd_no || ''}, ${violation_type})
+      RETURNING *
+    `;
+
+    // Increment student violations counter
+    await sql`UPDATE students SET violations = violations + 1 WHERE id = ${student_id}`;
+
+    res.status(201).json({ violation: violation[0] });
+  } catch (error) {
+    console.error('Violation logging error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─── POST /api/submissions ─────────────────────────────────────────────
+// Save student code submission. Prevent duplicate per question.
+router.post('/submissions', async (req, res) => {
+  try {
+    const { student_id, question_id, code, output, status } = req.body;
+
+    if (!student_id || !question_id || !code) {
+      return res.status(400).json({ error: 'student_id, question_id, and code are required.' });
+    }
+
+    // Prevent duplicate submission for same student + question
+    const existing = await sql`
+      SELECT * FROM submissions WHERE student_id = ${student_id} AND question_id = ${question_id}
+    `;
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'You have already submitted for this question.' });
+    }
+
+    const submission = await sql`
+      INSERT INTO submissions (student_id, question_id, code, output, status)
+      VALUES (${student_id}, ${question_id}, ${code}, ${output || ''}, ${status || 'Submitted'})
+      RETURNING *
+    `;
+
+    res.status(201).json({ submission: submission[0] });
+  } catch (error) {
+    console.error('Submission error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+export default router;
