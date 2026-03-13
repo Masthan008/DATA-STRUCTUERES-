@@ -1,27 +1,109 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  
+  --color-brand-primary: #2563EB;
+  --color-brand-secondary: #0F172A;
+  --color-brand-bg: #F1F5F9;
+  --color-brand-accent: #7C3AED;
+
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+
+  --shadow-card: 0 1px 3px 0 rgba(0,0,0,0.04), 0 1px 2px -1px rgba(0,0,0,0.04);
+  --shadow-card-hover: 0 4px 12px 0 rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.04);
+  --shadow-elevated: 0 8px 25px -5px rgba(0,0,0,0.1), 0 4px 10px -6px rgba(0,0,0,0.06);
+  --shadow-glow-blue: 0 0 20px rgba(37, 99, 235, 0.15);
+
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
 
 @layer base {
   body {
-    @apply bg-brand-bg text-slate-900 font-sans antialiased;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--color-brand-bg);
+    color: #0f172a;
+  }
+  
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  ::selection {
+    background-color: rgba(37, 99, 235, 0.2);
+    color: #1e3a5f;
   }
 }
 
-/* Custom scrollbar for Monaco Editor and similar areas */
+/* Custom Animations */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+.animate-slide-up {
+  animation: slideUp 0.35s ease-out;
+}
+.animate-scale-in {
+  animation: scaleIn 0.25s ease-out;
+}
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Premium scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent; 
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1; 
-  border-radius: 4px;
+  background: #cbd5e1;
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; 
+  background: #94a3b8;
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #2563EB 0%, #7C3AED 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Dot pattern for backgrounds */
+.dot-pattern {
+  background-image: radial-gradient(circle, #e2e8f0 1px, transparent 1px);
+  background-size: 24px 24px;
 }

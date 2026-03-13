@@ -5,6 +5,15 @@
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- 0. Table: admins
+CREATE TABLE IF NOT EXISTS admins (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  username VARCHAR(100) NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 
 -- 1. Table: exam_settings
 CREATE TABLE IF NOT EXISTS exam_settings (

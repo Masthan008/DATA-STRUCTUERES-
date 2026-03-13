@@ -3,15 +3,63 @@ import sql from '../db.js';
 
 const router = Router();
 
-// ─── POST /api/admin/login ─────────────────────────────────────────────
-router.post('/admin/login', (req, res) => {
-  const { username, password } = req.body;
+// ─── POST /api/admin/signup ────────────────────────────────────────────
+router.post('/admin/signup', async (req, res) => {
+  try {
+    const { username, password } = req.body;
 
-  if (username === 'admin' && password === 'admin') {
-    return res.json({ success: true, message: 'Admin authenticated.' });
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required.' });
+    }
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters.' });
+    }
+
+    // Check if username already exists
+    const existing = await sql`SELECT id FROM admins WHERE username = ${username}`;
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'Username already exists.' });
+    }
+
+    // Hash password with pgcrypto and insert
+    const admin = await sql`
+      INSERT INTO admins (username, password_hash)
+      VALUES (${username}, crypt(${password}, gen_salt('bf')))
+      RETURNING id, username, created_at
+    `;
+
+    res.status(201).json({ success: true, admin: admin[0], message: 'Admin account created.' });
+  } catch (error) {
+    console.error('Admin signup error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
   }
+});
 
-  res.status(401).json({ error: 'Invalid admin credentials.' });
+// ─── POST /api/admin/login ─────────────────────────────────────────────
+router.post('/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required.' });
+    }
+
+    const admin = await sql`
+      SELECT id, username, created_at
+      FROM admins
+      WHERE username = ${username}
+        AND password_hash = crypt(${password}, password_hash)
+    `;
+
+    if (admin.length === 0) {
+      return res.status(401).json({ error: 'Invalid username or password.' });
+    }
+
+    res.json({ success: true, admin: admin[0], message: 'Admin authenticated.' });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
 });
 
 // ─── POST /api/admin/start-exam ────────────────────────────────────────

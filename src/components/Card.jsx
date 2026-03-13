@@ -1,12 +1,13 @@
 import React from 'react';
 import { cn } from '../utils/clsx';
 
-export const Card = React.forwardRef(({ className, children, ...props }, ref) => {
+export const Card = React.forwardRef(({ className, children, hover = false, ...props }, ref) => {
   return (
     <div
       ref={ref}
       className={cn(
-        'rounded-2xl border border-slate-200 bg-white text-slate-950 shadow-sm',
+        'rounded-2xl border border-slate-200/80 bg-white shadow-card transition-all duration-200',
+        hover && 'hover:shadow-card-hover hover:border-slate-300/80 cursor-pointer',
         className
       )}
       {...props}
@@ -23,7 +24,7 @@ export const CardHeader = React.forwardRef(({ className, ...props }, ref) => (
 CardHeader.displayName = 'CardHeader';
 
 export const CardTitle = React.forwardRef(({ className, ...props }, ref) => (
-  <h3 ref={ref} className={cn('font-semibold leading-none tracking-tight text-xl', className)} {...props} />
+  <h3 ref={ref} className={cn('font-bold leading-none tracking-tight text-xl text-slate-900', className)} {...props} />
 ));
 CardTitle.displayName = 'CardTitle';
 

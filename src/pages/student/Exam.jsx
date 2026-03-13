@@ -4,12 +4,11 @@ import { useExam } from '../../context/ExamContext';
 import { QuestionPanel } from '../../components/exam/QuestionPanel';
 import { CodeEditor } from '../../components/exam/CodeEditor';
 import { OutputConsole } from '../../components/exam/OutputConsole';
-import { Navbar } from '../../components/Navbar';
 import { ExamTimer } from '../../components/ExamTimer';
 import { Button } from '../../components/Button';
 import { setupAntiCheat, enterFullscreen, exitFullscreen } from '../../utils/antiCheat';
 import api from '../../utils/api';
-import { Play, Send, AlertTriangle, Info, ShieldAlert } from 'lucide-react';
+import { Play, Send, ShieldAlert, Code2, User, Hash, Monitor, CheckCircle } from 'lucide-react';
 
 const ExamPage = () => {
   const { student, examActive, setTimeRemaining, timeRemaining, addViolation, violations, endExamSession, questions } = useExam();
@@ -20,27 +19,18 @@ const ExamPage = () => {
   const [output, setOutput] = useState('');
   const [isError, setIsError] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [warning, setWarning] = useState(null);
   const [showViolationModal, setShowViolationModal] = useState(false);
+  const [lastViolationMsg, setLastViolationMsg] = useState('');
 
   // Initialize Exam
   useEffect(() => {
     if (!student || !examActive) return;
-    
-    // Timer is set from server-side remaining_time via ExamContext
-    // No need to set it here
-    
     enterFullscreen();
 
-    // Setup Anti-Cheat
     const cleanupAntiCheat = setupAntiCheat((violation) => {
-      // Don't log duplicate immediately consecutive violations
       addViolation(violation);
-      setWarning(violation.message);
+      setLastViolationMsg(violation.message);
       setShowViolationModal(true);
-      
-      // Auto-hide toast after 3 seconds
-      setTimeout(() => setWarning(null), 3000);
     });
 
     return () => {
@@ -57,7 +47,7 @@ const ExamPage = () => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          handleSubmit(); // Auto-submit when time's up
+          handleSubmit();
           return 0;
         }
         return prev - 1;
@@ -67,8 +57,7 @@ const ExamPage = () => {
     return () => clearInterval(interval);
   }, [examActive]);
 
-
-  // Auto Save Logic
+  // Auto Save
   useEffect(() => {
     if (!examActive) return;
     const saveInterval = setInterval(() => {
@@ -89,10 +78,7 @@ const ExamPage = () => {
       const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source_code: code,
-          language_id: 50 // C language
-        })
+        body: JSON.stringify({ source_code: code, language_id: 50 })
       });
       
       const data = await response.json();
@@ -119,7 +105,6 @@ const ExamPage = () => {
   };
 
   const handleSubmit = async () => {
-    // Save to Neon DB via Express API
     try {
       await api.submitCode({
         student_id: student.id,
@@ -135,7 +120,6 @@ const ExamPage = () => {
     setIsError(false);
     setOutput('Code submitted successfully.');
     
-    // Clear session entirely
     endExamSession();
     sessionStorage.removeItem('saved_code');
 
@@ -145,99 +129,99 @@ const ExamPage = () => {
     }, 1500);
   };
 
-  const renderTopRight = () => (
-    <div className="flex items-center gap-4">
-      <div className="text-sm text-right hidden sm:block">
-        <p className="font-semibold text-slate-900 leading-tight">{student.name}</p>
-        <p className="text-slate-500 text-xs">{student.regd_no || student.regNo} | {student.system_no || student.systemNo}</p>
-      </div>
-      <ExamTimer />
-    </div>
-  );
-
   return (
-    <div className="h-screen flex flex-col bg-brand-bg select-none relative">
+    <div className="h-screen flex flex-col bg-[#F1F5F9] select-none relative">
       
       {/* Violation Modal */}
       {showViolationModal && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center space-y-4 animate-in zoom-in-95">
-            <div className="mx-auto w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
-              <ShieldAlert size={32} />
+        <div className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center space-y-4 animate-scale-in">
+            <div className="mx-auto w-14 h-14 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center">
+              <ShieldAlert size={28} />
             </div>
-            <h3 className="text-xl font-bold text-slate-900">Security Warning</h3>
-            <p className="text-slate-600 text-sm">{warning || 'A suspicious activity was detected.'}</p>
+            <h3 className="text-lg font-bold text-slate-900">Security Alert</h3>
+            <p className="text-slate-500 text-sm">{lastViolationMsg || 'Suspicious activity detected.'}</p>
             
             {violations.length > 3 && (
-              <div className="bg-red-50 text-red-700 p-3 rounded-lg text-sm font-medium border border-red-200">
-                Multiple suspicious activities detected. Your exam will be flagged for manual review.
+              <div className="bg-red-50 text-red-700 p-3 rounded-xl text-xs font-semibold border border-red-200">
+                ⚠ Multiple violations detected. Your exam will be flagged for review.
               </div>
             )}
             
-            <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">
-              Total Violations: {violations.length}
-            </p>
+            <div className="flex items-center justify-center gap-2 text-xs text-slate-400 font-semibold">
+              Violations: <span className="text-red-600 font-bold">{violations.length}</span>
+            </div>
 
-            <Button className="w-full mt-2" onClick={() => {
+            <Button className="w-full" onClick={() => {
                setShowViolationModal(false);
-               enterFullscreen(); // force them back
+               enterFullscreen();
             }}>
-              Acknowledge & Return to Exam
+              Return to Exam
             </Button>
           </div>
         </div>
       )}
 
-      {/* Warning Toast */}
-      {warning && !showViolationModal && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-6 py-3 rounded-lg shadow-xl flex items-center gap-3 animate-in slide-in-from-top-4">
-          <AlertTriangle size={20} />
-          <span className="font-medium">Warning: {warning}</span>
+      {/* Top Navbar — HackerRank style */}
+      <header className="h-12 bg-white border-b border-slate-200/80 flex items-center justify-between px-4 shrink-0 z-50">
+        <div className="flex items-center gap-3">
+          <div className="flex bg-gradient-to-br from-brand-primary to-brand-accent text-white p-1.5 rounded-lg">
+            <Code2 size={16} />
+          </div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-bold text-slate-900">{questions[0]?.title || 'Exam'}</h1>
+            <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">LIVE</span>
+          </div>
         </div>
-      )}
 
-      {/* Main Navbar */}
-      <Navbar title={`Exam: ${questions[0]?.title || 'Untitled'}`} rightContent={renderTopRight()} />
-      
-      {/* System Message Bar */}
-      <div className="h-8 bg-slate-900 text-slate-300 text-xs font-medium flex items-center justify-between px-6 z-40">
-        <div className="flex items-center gap-4 border-r border-slate-700 pr-4">
-           <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Platform Active</span>
-           <span className="flex items-center gap-1 text-slate-400">
-             <Info size={12} /> Auto-saving enabled
-           </span>
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1"><User size={12} /> {student.name}</span>
+            <span className="text-slate-300">|</span>
+            <span className="flex items-center gap-1"><Hash size={12} /> {student.regd_no || student.regNo}</span>
+            <span className="text-slate-300">|</span>
+            <span className="flex items-center gap-1"><Monitor size={12} /> {student.system_no || student.systemNo}</span>
+          </div>
+          <ExamTimer />
         </div>
-        <div className="flex items-center gap-6">
-           <span className="text-slate-400">Enforced Mode: Fullscreen</span>
-           <span className={violations.length > 0 ? "text-amber-400 font-bold" : "text-emerald-400"}>
-              Violations: {violations.length}
-           </span>
+      </header>
+
+      {/* Status Bar */}
+      <div className="h-7 bg-[#0d1117] text-[10px] font-medium flex items-center justify-between px-4 text-slate-500 z-40 border-b border-[#21262d]">
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Platform Active</span>
+          <span className="flex items-center gap-1"><CheckCircle size={10} /> Auto-save enabled</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span>Mode: Fullscreen</span>
+          <span className={violations.length > 0 ? "text-red-400 font-bold" : "text-emerald-400"}>
+            Flags: {violations.length}
+          </span>
         </div>
       </div>
       
+      {/* Main Content — Split View */}
       <main className="flex-1 flex overflow-hidden">
-        {/* Left Side: Question (40%) */}
+        {/* Left: Question Panel (40%) */}
         <div className="w-[40%] min-w-[300px] h-full">
           <QuestionPanel question={questions[0]} />
         </div>
 
-        {/* Right Side: IDE (60%) */}
-        <div className="flex-1 flex flex-col h-full bg-[#1e1e1e]">
+        {/* Right: Editor + Console (60%) */}
+        <div className="flex-1 flex flex-col h-full bg-[#0d1117]">
           <CodeEditor code={code} setCode={setCode} />
           
-          <div className="flex flex-col border-t border-slate-800">
-            {/* Editor Action Bar */}
-            <div className="bg-slate-900 p-3 flex justify-end gap-3 border-b border-slate-800">
-              <Button variant="secondary" onClick={handleRunCode} disabled={isRunning} className="bg-slate-800 hover:bg-slate-700 h-9 shrink-0 gap-2">
-                <Play size={16} /> Run Code
-              </Button>
-              <Button onClick={handleSubmit} className="bg-emerald-600 hover:bg-emerald-700 h-9 shrink-0 gap-2 shadow-emerald-900/20 shadow-lg">
-                <Send size={16} /> Submit Answer
-              </Button>
-            </div>
-            
-            <OutputConsole output={output} isRunning={isRunning} isError={isError} />
+          {/* Action Bar */}
+          <div className="bg-[#161b22] px-4 py-2 flex justify-end gap-2 border-t border-[#21262d]">
+            <Button variant="outline" onClick={handleRunCode} disabled={isRunning} className="h-8 text-xs bg-[#21262d] border-[#30363d] text-slate-300 hover:bg-[#30363d] gap-1.5">
+              <Play size={13} /> Run Code
+            </Button>
+            <Button onClick={handleSubmit} className="h-8 text-xs gap-1.5" variant="success">
+              <Send size={13} /> Submit
+            </Button>
           </div>
+          
+          <OutputConsole output={output} isRunning={isRunning} isError={isError} />
         </div>
       </main>
     </div>

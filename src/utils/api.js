@@ -48,7 +48,20 @@ const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
     });
-    return res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    return data;
+  },
+
+  async adminSignup(username, password) {
+    const res = await fetch(`${API_BASE}/admin/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Signup failed');
+    return data;
   },
 
   async startExam() {

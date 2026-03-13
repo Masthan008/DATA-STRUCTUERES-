@@ -2,71 +2,70 @@ import React from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../../components/Table';
 import { Card, CardContent } from '../../components/Card';
-import { AlertTriangle, MousePointerClick, Maximize, CopySlash } from 'lucide-react';
+import { AlertTriangle, MousePointerClick, Maximize, CopySlash, Eye } from 'lucide-react';
 
 const Logs = () => {
   const { allViolations } = useAdmin();
 
-  // Mock initial logs if empty for demo purposes
-  const displayLogs = allViolations.length > 0 ? allViolations : [
-    { studentName: 'Alice Smith', regNo: 'REG002', type: 'fullscreen_exit', message: 'Exited fullscreen mode', timestamp: new Date(Date.now() - 300000) },
-    { studentName: 'Alice Smith', regNo: 'REG002', type: 'copy_paste', message: 'Copy/Paste is disabled during the exam', timestamp: new Date(Date.now() - 500000) },
-    { studentName: 'Charlie Brown', regNo: 'REG005', type: 'tab_switch', message: 'Switched tabs or minimized window', timestamp: new Date(Date.now() - 1500000) },
-  ];
-
-  const getIcon = (type) => {
-    switch(type) {
-      case 'fullscreen_exit': return <Maximize size={16} className="text-amber-500" />;
-      case 'copy_paste': return <CopySlash size={16} className="text-red-500" />;
-      case 'right_click': return <MousePointerClick size={16} className="text-orange-500" />;
-      case 'tab_switch': return <AlertTriangle size={16} className="text-purple-500" />;
-      default: return <AlertTriangle size={16} className="text-slate-500" />;
-    }
+  const getViolationBadge = (type) => {
+    const map = {
+      fullscreen_exit: { icon: Maximize, label: 'Fullscreen Exit', color: 'bg-amber-100 text-amber-700' },
+      copy_paste: { icon: CopySlash, label: 'Copy/Paste', color: 'bg-red-100 text-red-700' },
+      right_click: { icon: MousePointerClick, label: 'Right Click', color: 'bg-orange-100 text-orange-700' },
+      tab_switch: { icon: Eye, label: 'Tab Switch', color: 'bg-purple-100 text-purple-700' },
+    };
+    const v = map[type] || { icon: AlertTriangle, label: type?.replace('_', ' ') || 'Unknown', color: 'bg-slate-100 text-slate-600' };
+    const Icon = v.icon;
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${v.color}`}>
+        <Icon size={12} /> {v.label}
+      </span>
+    );
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">System Logs</h1>
-        <p className="text-slate-500 mt-1">Detailed history of all triggered anti-cheat events.</p>
+    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Violation Logs</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{allViolations.length} events recorded</p>
+        </div>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>Student</TableHead>
-                <TableHead>Reg. Number</TableHead>
-                <TableHead>Violation Type</TableHead>
-                <TableHead>Details</TableHead>
+      {allViolations.length > 0 ? (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Time</TableHead>
+              <TableHead>Student</TableHead>
+              <TableHead>Reg. No.</TableHead>
+              <TableHead>Violation</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {allViolations.map((log, i) => (
+              <TableRow key={i}>
+                <TableCell>
+                  <span className="text-xs font-mono text-slate-400">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="font-semibold text-slate-900 text-sm">{log.students?.name || log.student_name || log.studentName}</span>
+                </TableCell>
+                <TableCell><code className="text-xs bg-slate-100 px-2 py-0.5 rounded">{log.regd_no || log.regNo}</code></TableCell>
+                <TableCell>{getViolationBadge(log.violation_type || log.type)}</TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {displayLogs.map((log, i) => (
-                <TableRow key={i}>
-                  <TableCell className="text-slate-500 whitespace-nowrap">
-                    {new Date(log.timestamp).toLocaleTimeString()}
-                  </TableCell>
-                  <TableCell className="font-medium text-slate-900">{log.students?.name || log.studentName}</TableCell>
-                  <TableCell>{log.regd_no || log.regNo}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                       {getIcon(log.violation_type || log.type)}
-                       <span className="capitalize">{(log.violation_type || log.type).replace('_', ' ')}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-slate-600">{log.violation_type || log.message}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {displayLogs.length === 0 && (
-            <div className="text-center py-12 text-slate-500">No violations recorded yet.</div>
-          )}
-        </CardContent>
-      </Card>
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <Card>
+          <CardContent className="py-16 text-center">
+            <AlertTriangle size={40} className="mx-auto text-slate-300 mb-3" />
+            <p className="text-slate-500 text-sm">No violations recorded yet</p>
+            <p className="text-slate-400 text-xs mt-1">All clear — no suspicious activity detected</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

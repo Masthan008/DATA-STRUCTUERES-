@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/Card';
+import { Card, CardContent } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
-import { Save } from 'lucide-react';
+import { Save, Clock, Monitor, CheckCircle } from 'lucide-react';
 import api from '../../utils/api';
 
 const Settings = () => {
@@ -26,43 +26,50 @@ const Settings = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Exam Settings</h1>
-        <p className="text-slate-500 mt-1">Configure global preferences for the coding environment.</p>
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+        <p className="text-sm text-slate-500 mt-0.5">Configure exam parameters and access rules</p>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Security & Access</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6 flex flex-col">
-          <div className="grid grid-cols-2 gap-8 items-end">
+        <CardContent className="p-6 space-y-6">
+          <h3 className="text-sm font-semibold text-slate-900">Exam Configuration</h3>
+          
+          <div className="grid grid-cols-2 gap-6">
             <Input 
+              icon={Clock}
               type="number" 
-              label="Exam Duration (in minutes)" 
+              label="Duration (minutes)" 
               value={localSettings.duration} 
               onChange={e => setLocalSettings({...localSettings, duration: Number(e.target.value)})}
             />
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">Allowed Devices</label>
-              <select 
-                className="flex h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                value={localSettings.allowedDevice}
-                onChange={e => setLocalSettings({...localSettings, allowedDevice: e.target.value})}
-              >
-                <option value="desktop">Desktop Only (Recommended)</option>
-                <option value="mobile">Mobile Only</option>
-                <option value="both">Both (Desktop & Mobile)</option>
-              </select>
+              <label className="mb-1.5 block text-sm font-semibold text-slate-700">Allowed Devices</label>
+              <div className="relative">
+                <Monitor size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <select 
+                  className="flex h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-all duration-200 shadow-sm hover:border-slate-300 appearance-none cursor-pointer"
+                  value={localSettings.allowedDevice}
+                  onChange={e => setLocalSettings({...localSettings, allowedDevice: e.target.value})}
+                >
+                  <option value="desktop">Desktop Only</option>
+                  <option value="mobile">Mobile Only</option>
+                  <option value="both">Both (Desktop & Mobile)</option>
+                </select>
+              </div>
             </div>
           </div>
           
-          <div className="pt-6 border-t border-slate-100 flex items-center justify-between">
-            {saved ? <span className="text-emerald-600 font-medium text-sm">Settings saved successfully!</span> : <span />}
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+            {saved ? (
+              <span className="flex items-center gap-1.5 text-emerald-600 font-semibold text-sm animate-fade-in">
+                <CheckCircle size={16} /> Saved successfully
+              </span>
+            ) : <span />}
             <Button onClick={handleSave} className="gap-2">
-              <Save size={18} /> Save Configurations
+              <Save size={16} /> Save Changes
             </Button>
           </div>
         </CardContent>
