@@ -8,19 +8,21 @@ import api from '../../utils/api';
 
 const Settings = () => {
   const { examSettings, setExamSettings, admin } = useAdmin();
-  const [localSettings, setLocalSettings] = useState(examSettings);
+  // Initialize once from context — never re-sync from polling to avoid overwrite
+  const [localSettings, setLocalSettings] = useState(null);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
 
-  // Sync local state when context updates from polling — but only if user hasn't made unsaved changes
+  // On first load, wait until examSettings has real data (fetched from server), then init once
+  const initialized = localSettings !== null;
   useEffect(() => {
-    if (!isDirty) setLocalSettings(examSettings);
-  }, [examSettings]);
+    if (!initialized && examSettings && examSettings.duration) {
+      setLocalSettings(examSettings);
+    }
+  }, [examSettings, initialized]);
 
   const updateLocal = (patch) => {
     setLocalSettings(prev => ({ ...prev, ...patch }));
-    setIsDirty(true);
   };
 
   const handleSave = async () => {
@@ -33,13 +35,14 @@ const Settings = () => {
         scheduled_start_time: localSettings.scheduled_start_time || null
       });
       setExamSettings(localSettings);
-      setIsDirty(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       console.error('Failed to save settings:', err);
     }
   };
+
+  if (!localSettings) return <div className="p-8 text-slate-400 text-sm">Loading settings...</div>;
 
   const studentLink = admin ? `${window.location.origin}/student/login?admin=${admin.id}` : '';
 
