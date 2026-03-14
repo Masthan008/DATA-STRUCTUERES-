@@ -193,7 +193,7 @@ const ExamPage = () => {
       
       if (isAutoEval && currentQuestionId) {
         // Fetch test cases
-        const tcRes = await fetch(`http://localhost:5000/api/questions/${currentQuestionId}/testcases`);
+        const tcRes = await fetch(`/api/questions/${currentQuestionId}/testcases`);
         const tcData = await tcRes.json();
         const testcases = tcData.testcases || [];
         
@@ -233,6 +233,7 @@ const ExamPage = () => {
         ) : (currentOutput?.output || currentOutput?.compileError),
         status: isAutoEval ? finalStatus : 'Pending Admin Evaluation',
         score: finalScore,
+        score_awarded: isAutoEval ? finalScore : null,
         evaluation_details: evalDetails
       });
       if (submitRes.error) throw new Error(submitRes.error);

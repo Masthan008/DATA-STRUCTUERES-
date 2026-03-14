@@ -130,7 +130,7 @@ router.post('/violations', async (req, res) => {
 // Save student code submission. Also works for saving without grading.
 router.post('/submissions', async (req, res) => {
   try {
-    const { student_id, question_id, code, output, status, score, evaluation_details } = req.body;
+    const { student_id, question_id, code, output, status, score, score_awarded, evaluation_details } = req.body;
 
     if (!student_id || !question_id || !code) {
       return res.status(400).json({ error: 'student_id, question_id, and code are required.' });
@@ -150,6 +150,7 @@ router.post('/submissions', async (req, res) => {
             output = ${output || ''},
             status = ${status || 'Submitted'},
             score = ${score || 0},
+            score_awarded = ${score_awarded !== undefined ? score_awarded : null},
             run_count = run_count + 1,
             submission_count = submission_count + 1,
             evaluation_details = ${detailsJson}::jsonb
@@ -160,7 +161,7 @@ router.post('/submissions', async (req, res) => {
     } else {
       // Insert
       const submission = await sql`
-        INSERT INTO submissions (student_id, question_id, code, output, status, score, run_count, submission_count, evaluation_details)
+        INSERT INTO submissions (student_id, question_id, code, output, status, score, score_awarded, run_count, submission_count, evaluation_details)
         VALUES (
           ${student_id}, 
           ${question_id}, 
@@ -168,6 +169,7 @@ router.post('/submissions', async (req, res) => {
           ${output || ''}, 
           ${status || 'Submitted'},
           ${score || 0},
+          ${score_awarded !== undefined ? score_awarded : null},
           1,
           1,
           ${detailsJson}::jsonb
