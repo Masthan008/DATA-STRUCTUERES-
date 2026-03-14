@@ -169,6 +169,34 @@ export const OutputConsole = ({ outputData, isRunning }) => {
             {outputData.noOutput && (
               <pre className="text-slate-500 italic">Program compiled and ran with no output.</pre>
             )}
+
+            {/* Auto Eval Test Case Results */}
+            {outputData.evalResults && (
+              <div>
+                <div className={`font-bold text-[10px] uppercase tracking-wider mb-3 flex items-center gap-1.5 ${outputData.finalStatus === 'PASS' ? 'text-emerald-400' : outputData.finalStatus === 'PARTIAL' ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {outputData.finalStatus === 'PASS' ? <CheckCircle size={11} /> : <AlertCircle size={11} />}
+                  {outputData.finalStatus} — Score: {outputData.finalScore} / {outputData.maxScore}
+                </div>
+                <div className="space-y-2">
+                  {outputData.evalResults.map((tc, idx) => (
+                    <div key={idx} className={`rounded-lg border p-2.5 text-[11px] ${tc.status === 'Pass' ? 'border-emerald-800 bg-emerald-950/40' : 'border-red-800 bg-red-950/40'}`}>
+                      <div className="flex justify-between font-bold mb-1.5">
+                        <span className="text-slate-300">Test Case {idx + 1}</span>
+                        <span className={tc.status === 'Pass' ? 'text-emerald-400' : 'text-red-400'}>{tc.status}</span>
+                      </div>
+                      {!tc.error && (
+                        <>
+                          <div className="text-slate-500">Input: <span className="text-slate-300 font-mono">{tc.input || '(none)'}</span></div>
+                          <div className="text-slate-500">Expected: <span className="text-emerald-300 font-mono">{tc.expected}</span></div>
+                          <div className="text-slate-500">Got: <span className={`font-mono ${tc.status === 'Pass' ? 'text-emerald-300' : 'text-red-300'}`}>{tc.actual || '(no output)'}</span></div>
+                        </>
+                      )}
+                      {tc.error && <div className="text-red-400 font-mono">{tc.error}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         ) : (
           <pre className="text-slate-600 p-1">{'> Ready. Click "Run Code" to compile and execute.'}</pre>

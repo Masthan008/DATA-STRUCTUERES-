@@ -217,8 +217,8 @@ const ExamPage = () => {
             });
           }
           
-          finalScore = Math.round((passedCt / testcases.length) * 100);
-          finalStatus = passedCt === testcases.length ? 'PASS' : 'FAIL';
+          finalScore = Math.round((passedCt / testcases.length) * (questions[activeQuestionIndex]?.question_score || 10));
+          finalStatus = passedCt === testcases.length ? 'PASS' : passedCt > 0 ? 'PARTIAL' : 'FAIL';
         }
       }
 
@@ -243,9 +243,12 @@ const ExamPage = () => {
         [currentQuestionId]: 'Submitted'
       }));
       
+      // Show eval results in console if auto mode, otherwise simple message
       setResultsPerQuestion(prev => ({
         ...prev,
-        [currentQuestionId]: { output: 'Question submitted successfully.' }
+        [currentQuestionId]: isAutoEval && evalDetails.length > 0
+          ? { evalResults: evalDetails, finalScore, finalStatus, maxScore: questions[activeQuestionIndex]?.question_score || 10 }
+          : { output: 'Question submitted successfully.' }
       }));
       
     } catch (err) {
