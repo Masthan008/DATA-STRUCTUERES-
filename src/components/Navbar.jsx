@@ -6,8 +6,8 @@ export const Navbar = ({ title = "Secure Exam Portal", rightContent }) => {
     <header className="sticky top-0 z-50 w-full border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
       <div className="flex h-14 items-center justify-between px-6">
         <div className="flex items-center gap-3">
-          <div className="flex bg-gradient-to-br from-brand-primary to-brand-accent text-white p-2 rounded-lg shadow-sm">
-            <Code2 size={20} />
+          <div className="flex rounded-lg shadow-sm overflow-hidden h-9 w-9">
+            <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
           </div>
           <div>
             <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">

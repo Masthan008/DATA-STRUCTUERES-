@@ -4,39 +4,24 @@ import sql from '../db.js';
 const router = Router();
 
 // ─── POST /api/student/login ───────────────────────────────────────────
-// Register student session. Prevents duplicate regd_no. Enforces device restriction.
 router.post('/student/login', async (req, res) => {
   try {
     const { name, regd_no, system_no, device_type } = req.body;
 
-    // Validate input
     if (!name || !regd_no || !system_no || !device_type) {
       return res.status(400).json({ error: 'All fields are required.' });
     }
 
-    // Check device restriction from exam_settings
-    const settings = await sql`SELECT * FROM exam_settings LIMIT 1`;
-    if (settings.length > 0) {
-      const allowed = settings[0].allowed_device;
-      if (allowed !== 'both' && allowed !== device_type) {
-        return res.status(403).json({ error: 'Device not permitted for this exam.' });
-      }
-    }
-
-    // Check for duplicate regd_no
     const existing = await sql`SELECT * FROM students WHERE regd_no = ${regd_no}`;
     if (existing.length > 0) {
-      // Return existing student session
       return res.json({ student: existing[0], message: 'Session restored.' });
     }
 
-    // Create new student record
     const result = await sql`
       INSERT INTO students (name, regd_no, system_no, device_type, exam_started, violations)
       VALUES (${name}, ${regd_no}, ${system_no}, ${device_type}, true, 0)
       RETURNING *
     `;
-
     res.status(201).json({ student: result[0], message: 'Login successful.' });
   } catch (error) {
     console.error('Student login error:', error);
@@ -45,13 +30,15 @@ router.post('/student/login', async (req, res) => {
 });
 
 // ─── GET /api/exam/status ──────────────────────────────────────────────
-// Check if exam is active. Returns timer info.
 router.get('/exam/status', async (req, res) => {
   try {
-    const settings = await sql`SELECT * FROM exam_settings LIMIT 1`;
-    if (settings.length === 0) {
-      return res.json({ exam_active: false });
-    }
+    const admin_id = req.query.admin_id;
+    const query = admin_id
+      ? sql`SELECT * FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`
+      : sql`SELECT * FROM exam_settings LIMIT 1`;
+
+    const settings = await query;
+    if (settings.length === 0) return res.json({ exam_active: false });
 
     const s = settings[0];
     let remaining_time = null;
@@ -61,6 +48,10 @@ router.get('/exam/status', async (req, res) => {
       const durationMs = s.exam_duration * 60 * 1000;
       const nowMs = Date.now();
       remaining_time = Math.max(0, Math.floor((startMs + durationMs - nowMs) / 1000));
+      if (remaining_time <= 0) {
+        await sql`UPDATE exam_settings SET exam_active = false WHERE id = ${s.id}`;
+        s.exam_active = false;
+      }
     }
 
     res.json({
@@ -78,15 +69,13 @@ router.get('/exam/status', async (req, res) => {
 });
 
 // ─── GET /api/questions/random ─────────────────────────────────────────
-// Return stable random questions for the student.
 router.get('/questions/random', async (req, res) => {
   try {
-    const studentId = req.query.student_id || 'default';
-    const questions = await sql`
-      SELECT * FROM questions 
-      ORDER BY MD5(id::text || ${studentId}::text) 
-      LIMIT 4
-    `;
+    const { student_id, admin_id } = req.query;
+    const sid = student_id || 'default';
+    const questions = admin_id
+      ? await sql`SELECT * FROM questions WHERE admin_id = ${admin_id} ORDER BY MD5(id::text || ${sid}::text) LIMIT 4`
+      : await sql`SELECT * FROM questions ORDER BY MD5(id::text || ${sid}::text) LIMIT 4`;
     res.json({ questions });
   } catch (error) {
     console.error('Random questions error:', error);
@@ -163,7 +152,7 @@ router.post('/submissions', async (req, res) => {
             score = ${score || 0},
             run_count = run_count + 1,
             submission_count = submission_count + 1,
-            evaluation_details = ${detailsJson}
+            evaluation_details = ${detailsJson}::jsonb
         WHERE id = ${existing[0].id}
         RETURNING *
       `;
@@ -181,7 +170,7 @@ router.post('/submissions', async (req, res) => {
           ${score || 0},
           1,
           1,
-          ${detailsJson}
+          ${detailsJson}::jsonb
         )
         RETURNING *
       `;
@@ -189,7 +178,7 @@ router.post('/submissions', async (req, res) => {
     }
   } catch (error) {
     console.error('Submission error:', error);
-    res.status(500).json({ error: 'Internal server error.' });
+    res.status(500).json({ error: error.message || 'Internal server error.' });
   }
 });
 
@@ -229,7 +218,7 @@ router.post('/submissions/save', async (req, res) => {
 
   } catch (error) {
     console.error('Save submission error:', error);
-    res.status(500).json({ error: 'Internal server error.' });
+    res.status(500).json({ error: error.message || 'Internal server error.' });
   }
 });
 
@@ -266,6 +255,7 @@ router.get('/student/exam-summary/:id', async (req, res) => {
     // Usually it would check the questions table explicitly or get the subset assigned.
     const questionsAssignedData = await sql`
       SELECT id FROM questions 
+      WHERE admin_id = ${student.admin_id}
       ORDER BY MD5(id::text || ${student_id}::text) 
       LIMIT 4
     `;
@@ -296,6 +286,113 @@ router.get('/student/exam-summary/:id', async (req, res) => {
   } catch (err) {
     console.error('Exam summary error:', err);
     res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ─── POST /api/compile ─────────────────────────────────────────────────
+// Compiles and runs C code locally using the system GCC — no external API needed.
+router.post('/compile', async (req, res) => {
+  const { source_code, stdin = '' } = req.body;
+
+  if (!source_code) {
+    return res.status(400).json({ error: 'source_code is required.' });
+  }
+
+  const { exec, spawn } = await import('child_process');
+  const { writeFile, unlink, mkdtemp } = await import('fs/promises');
+  const { tmpdir } = await import('os');
+  const path = await import('path');
+
+  // Create a unique temp directory for this submission
+  let tmpDir;
+  try {
+    tmpDir = await mkdtemp(path.join(tmpdir(), 'exam-'));
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to create temp directory.' });
+  }
+
+  const srcFile = path.join(tmpDir, 'main.c');
+  const outFile = path.join(tmpDir, 'main.exe');
+
+  try {
+    await writeFile(srcFile, source_code, 'utf8');
+
+    // Step 1: Compile — capture stdout and stderr separately (Windows-safe)
+    const compileResult = await new Promise((resolve) => {
+      exec(`gcc "${srcFile}" -o "${outFile}" -Wall -lm`, { timeout: 10000 }, (err, stdout, stderr) => {
+        resolve({
+          exitCode: err ? (err.code || 1) : 0,
+          output: (stderr || stdout || '').trim()
+        });
+      });
+    });
+
+    if (compileResult.exitCode !== 0 || compileResult.output.trim()) {
+      // Check if the binary was produced despite warnings
+      const { access } = await import('fs/promises');
+      let binaryExists = false;
+      try { await access(outFile); binaryExists = true; } catch {}
+
+      if (!binaryExists) {
+        // Real compile error
+        return res.json({ compileError: compileResult.output.trim() });
+      }
+      // Warnings only — continue to run but include warnings
+    }
+
+    // Step 2: Run with stdin, 5s timeout
+    const runResult = await new Promise((resolve) => {
+      const start = Date.now();
+      const child = spawn(outFile, [], { timeout: 5000 });
+
+      let stdout = '';
+      let stderr = '';
+
+      if (stdin) child.stdin.write(stdin);
+      child.stdin.end();
+
+      child.stdout.on('data', (d) => { stdout += d.toString(); });
+      child.stderr.on('data', (d) => { stderr += d.toString(); });
+
+      child.on('close', (code) => {
+        resolve({
+          stdout,
+          stderr,
+          exitCode: code,
+          time: ((Date.now() - start) / 1000).toFixed(3),
+        });
+      });
+
+      child.on('error', (err) => {
+        resolve({ stdout: '', stderr: err.message, exitCode: 1, time: '0' });
+      });
+    });
+
+    const result = { time: runResult.time };
+
+    if (runResult.stderr && runResult.stderr.trim()) {
+      result.runtimeError = runResult.stderr.trim();
+    } else {
+      result.output = runResult.stdout;
+      if (!runResult.stdout && runResult.exitCode === 0) result.noOutput = true;
+    }
+
+    // Include compiler warnings alongside output if any
+    if (compileResult.output.trim()) {
+      result.warnings = compileResult.output.trim();
+    }
+
+    return res.json(result);
+
+  } catch (err) {
+    console.error('Compile error:', err);
+    return res.status(500).json({ error: `Compiler error: ${err.message}` });
+  } finally {
+    // Cleanup temp files
+    try {
+      const { rm } = await import('fs/promises');
+      await rm(tmpDir, { recursive: true, force: true });
+    } catch {}
   }
 });
 

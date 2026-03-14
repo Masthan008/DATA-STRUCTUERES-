@@ -8,7 +8,7 @@ import { Plus, Trash2, X, FileQuestion, Type, FileText, ArrowRightLeft } from 'l
 import api from '../../utils/api';
 
 const QuestionManagement = () => {
-  const { questions, setQuestions } = useAdmin();
+  const { questions, setQuestions, admin } = useAdmin();
   const [isAdding, setIsAdding] = useState(false);
   const [newQuestion, setNewQuestion] = useState({ 
     title: '', description: '', inputExample: '', outputExample: '', question_score: 10, testCases: [{ input: '', expected_output: '', is_hidden: true }] 
@@ -18,6 +18,7 @@ const QuestionManagement = () => {
     e.preventDefault();
     try {
       const data = await api.addQuestion({
+        admin_id: admin.id,
         title: newQuestion.title,
         description: newQuestion.description,
         sample_input: newQuestion.inputExample,
@@ -26,11 +27,10 @@ const QuestionManagement = () => {
       });
       if (data.question) {
         setQuestions([...questions, data.question]);
-        
-        // Add all test cases for this question
         for (const tc of newQuestion.testCases) {
           if (tc.input.trim() && tc.expected_output.trim()) {
              await api.addTestcase({
+               admin_id: admin.id,
                question_id: data.question.id,
                input: tc.input,
                expected_output: tc.expected_output,
@@ -66,7 +66,7 @@ const QuestionManagement = () => {
 
   const handleDelete = async (id) => {
     try {
-      await api.deleteQuestion(id);
+      await api.deleteQuestion(id, admin.id);
       setQuestions(questions.filter(q => q.id !== id));
     } catch (err) {
       console.error('Failed to delete question:', err);

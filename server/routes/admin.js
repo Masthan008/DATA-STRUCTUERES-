@@ -1,86 +1,64 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import sql from '../db.js';
 
 const router = Router();
 
-// ─── POST /api/admin/signup ────────────────────────────────────────────
+// POST /api/admin/signup
 router.post('/admin/signup', async (req, res) => {
   try {
     const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required.' });
-    }
-    if (password.length < 4) {
-      return res.status(400).json({ error: 'Password must be at least 4 characters.' });
-    }
-
-    // Check if username already exists
+    if (!username || !password) return res.status(400).json({ error: 'Username and password are required.' });
+    if (password.length < 4) return res.status(400).json({ error: 'Password must be at least 4 characters.' });
     const existing = await sql`SELECT id FROM admins WHERE username = ${username}`;
-    if (existing.length > 0) {
-      return res.status(409).json({ error: 'Username already exists.' });
-    }
-
-    // Hash password with pgcrypto and insert
+    if (existing.length > 0) return res.status(409).json({ error: 'Username already exists.' });
     const admin = await sql`
       INSERT INTO admins (username, password_hash)
       VALUES (${username}, crypt(${password}, gen_salt('bf')))
       RETURNING id, username, created_at
     `;
-
-    res.status(201).json({ success: true, admin: admin[0], message: 'Admin account created.' });
+    res.status(201).json({ success: true, admin: admin[0] });
   } catch (error) {
     console.error('Admin signup error:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });
 
-// ─── POST /api/admin/login ─────────────────────────────────────────────
+// POST /api/admin/login
 router.post('/admin/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required.' });
-    }
-
+    if (!username || !password) return res.status(400).json({ error: 'Username and password are required.' });
     const admin = await sql`
-      SELECT id, username, created_at
-      FROM admins
-      WHERE username = ${username}
-        AND password_hash = crypt(${password}, password_hash)
+      SELECT id, username, created_at FROM admins
+      WHERE username = ${username} AND password_hash = crypt(${password}, password_hash)
     `;
-
-    if (admin.length === 0) {
-      return res.status(401).json({ error: 'Invalid username or password.' });
-    }
-
-    res.json({ success: true, admin: admin[0], message: 'Admin authenticated.' });
+    if (admin.length === 0) return res.status(401).json({ error: 'Invalid username or password.' });
+    res.json({ success: true, admin: admin[0] });
   } catch (error) {
     console.error('Admin login error:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });
 
-// ─── POST /api/admin/start-exam ────────────────────────────────────────
+// POST /api/admin/start-exam
 router.post('/admin/start-exam', async (req, res) => {
   try {
-    const settings = await sql`SELECT id FROM exam_settings LIMIT 1`;
-
-    if (settings.length === 0) {
-      // Create settings row if none exists
-      await sql`
-        INSERT INTO exam_settings (exam_active, exam_start_time)
-        VALUES (true, NOW())
-      `;
+    const { admin_id } = req.body;
+    if (admin_id) {
+      const settings = await sql`SELECT id FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`;
+      if (settings.length === 0) {
+        await sql`INSERT INTO exam_settings (admin_id, exam_active, exam_start_time) VALUES (${admin_id}, true, NOW())`;
+      } else {
+        await sql`UPDATE exam_settings SET exam_active = true, exam_start_time = NOW() WHERE admin_id = ${admin_id}`;
+      }
     } else {
-      await sql`
-        UPDATE exam_settings
-        SET exam_active = true, exam_start_time = NOW()
-        WHERE id = ${settings[0].id}
-      `;
+      const settings = await sql`SELECT id FROM exam_settings LIMIT 1`;
+      if (settings.length === 0) {
+        await sql`INSERT INTO exam_settings (exam_active, exam_start_time) VALUES (true, NOW())`;
+      } else {
+        await sql`UPDATE exam_settings SET exam_active = true, exam_start_time = NOW()`;
+      }
     }
-
     res.json({ success: true, message: 'Exam started.' });
   } catch (error) {
     console.error('Start exam error:', error);
@@ -88,19 +66,15 @@ router.post('/admin/start-exam', async (req, res) => {
   }
 });
 
-// ─── POST /api/admin/end-exam ──────────────────────────────────────────
+// POST /api/admin/end-exam
 router.post('/admin/end-exam', async (req, res) => {
   try {
-    const settings = await sql`SELECT id FROM exam_settings LIMIT 1`;
-
-    if (settings.length > 0) {
-      await sql`
-        UPDATE exam_settings
-        SET exam_active = false
-        WHERE id = ${settings[0].id}
-      `;
+    const { admin_id } = req.body;
+    if (admin_id) {
+      await sql`UPDATE exam_settings SET exam_active = false WHERE admin_id = ${admin_id}`;
+    } else {
+      await sql`UPDATE exam_settings SET exam_active = false`;
     }
-
     res.json({ success: true, message: 'Exam ended.' });
   } catch (error) {
     console.error('End exam error:', error);
@@ -108,21 +82,16 @@ router.post('/admin/end-exam', async (req, res) => {
   }
 });
 
-// ─── POST /api/admin/add-question ──────────────────────────────────────
+// POST /api/admin/add-question
 router.post('/admin/add-question', async (req, res) => {
   try {
-    const { title, description, sample_input, sample_output, question_score } = req.body;
-
-    if (!title || !description) {
-      return res.status(400).json({ error: 'Title and description are required.' });
-    }
-
+    const { admin_id, title, description, sample_input, sample_output, question_score } = req.body;
+    if (!title || !description) return res.status(400).json({ error: 'Title and description are required.' });
     const question = await sql`
-      INSERT INTO questions (title, description, sample_input, sample_output, question_score)
-      VALUES (${title}, ${description}, ${sample_input || ''}, ${sample_output || ''}, ${question_score || 10})
+      INSERT INTO questions (admin_id, title, description, sample_input, sample_output, question_score)
+      VALUES (${admin_id || null}, ${title}, ${description}, ${sample_input || ''}, ${sample_output || ''}, ${question_score || 10})
       RETURNING *
     `;
-
     res.status(201).json({ question: question[0] });
   } catch (error) {
     console.error('Add question error:', error);
@@ -130,26 +99,24 @@ router.post('/admin/add-question', async (req, res) => {
   }
 });
 
-// ─── DELETE /api/admin/delete-question/:id ──────────────────────────────
+// DELETE /api/admin/delete-question/:id
 router.delete('/admin/delete-question/:id', async (req, res) => {
   try {
     await sql`DELETE FROM questions WHERE id = ${req.params.id}`;
-    res.json({ success: true, message: 'Question deleted.' });
+    res.json({ success: true });
   } catch (error) {
     console.error('Delete question error:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });
 
-// ─── POST /api/admin/add-testcase ──────────────────────────────────────
+// POST /api/admin/add-testcase
 router.post('/admin/add-testcase', async (req, res) => {
   try {
     const { question_id, input, expected_output, is_hidden } = req.body;
-    
     if (!question_id || input === undefined || expected_output === undefined) {
       return res.status(400).json({ error: 'question_id, input, and expected_output required.' });
     }
-
     const testcase = await sql`
       INSERT INTO test_cases (question_id, input, expected_output, is_hidden)
       VALUES (${question_id}, ${input}, ${expected_output}, ${is_hidden ?? true})
@@ -162,53 +129,43 @@ router.post('/admin/add-testcase', async (req, res) => {
   }
 });
 
-// ─── POST /api/admin/update-submission ─────────────────────────────────
-router.post('/admin/update-submission', async (req, res) => {
-  try {
-    const { id, status, score_awarded } = req.body;
-    if (!id || !status) return res.status(400).json({ error: 'id and status required' });
-
-    await sql`
-      UPDATE submissions
-      SET status = ${status}, score_awarded = ${score_awarded || 0}
-      WHERE id = ${id}
-    `;
-    res.json({ success: true, message: 'Submission manually updated.' });
-  } catch (err) {
-    console.error('Update submission error:', err);
-    res.status(500).json({ error: 'Internal server error.' });
-  }
-});
-
-// ─── POST /api/admin/update-settings ───────────────────────────────────
+// POST /api/admin/update-settings
 router.post('/admin/update-settings', async (req, res) => {
   try {
-    const { exam_duration, allowed_device, evaluation_mode } = req.body;
-    const settings = await sql`SELECT id FROM exam_settings LIMIT 1`;
-
+    const { admin_id, exam_duration, allowed_device, evaluation_mode } = req.body;
+    const settings = admin_id
+      ? await sql`SELECT id FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`
+      : await sql`SELECT id FROM exam_settings LIMIT 1`;
     if (settings.length > 0) {
-      await sql`
-        UPDATE exam_settings
-        SET exam_duration = ${exam_duration}, 
-            allowed_device = ${allowed_device},
-            evaluation_mode = ${evaluation_mode || 'auto'}
-        WHERE id = ${settings[0].id}
-      `;
+      if (admin_id) {
+        await sql`UPDATE exam_settings SET exam_duration = ${exam_duration}, allowed_device = ${allowed_device}, evaluation_mode = ${evaluation_mode || 'auto'} WHERE admin_id = ${admin_id}`;
+      } else {
+        await sql`UPDATE exam_settings SET exam_duration = ${exam_duration}, allowed_device = ${allowed_device}, evaluation_mode = ${evaluation_mode || 'auto'}`;
+      }
     } else {
-      await sql`
-        INSERT INTO exam_settings (exam_duration, allowed_device, evaluation_mode)
-        VALUES (${exam_duration}, ${allowed_device}, ${evaluation_mode || 'auto'})
-      `;
+      await sql`INSERT INTO exam_settings (admin_id, exam_duration, allowed_device, evaluation_mode) VALUES (${admin_id || null}, ${exam_duration}, ${allowed_device}, ${evaluation_mode || 'auto'})`;
     }
-
-    res.json({ success: true, message: 'Settings updated.' });
+    res.json({ success: true });
   } catch (error) {
     console.error('Update settings error:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });
 
-// ─── GET /api/admin/students ───────────────────────────────────────────
+// POST /api/admin/update-submission
+router.post('/admin/update-submission', async (req, res) => {
+  try {
+    const { id, status, score_awarded } = req.body;
+    if (!id || !status) return res.status(400).json({ error: 'id and status required' });
+    await sql`UPDATE submissions SET status = ${status}, score_awarded = ${score_awarded || 0} WHERE id = ${id}`;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Update submission error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// GET /api/admin/students
 router.get('/admin/students', async (req, res) => {
   try {
     const students = await sql`SELECT * FROM students ORDER BY created_at DESC`;
@@ -219,7 +176,7 @@ router.get('/admin/students', async (req, res) => {
   }
 });
 
-// ─── GET /api/admin/violations ─────────────────────────────────────────
+// GET /api/admin/violations
 router.get('/admin/violations', async (req, res) => {
   try {
     const violations = await sql`
@@ -235,7 +192,7 @@ router.get('/admin/violations', async (req, res) => {
   }
 });
 
-// ─── GET /api/admin/submissions ────────────────────────────────────────
+// GET /api/admin/submissions
 router.get('/admin/submissions', async (req, res) => {
   try {
     const submissions = await sql`
@@ -252,7 +209,7 @@ router.get('/admin/submissions', async (req, res) => {
   }
 });
 
-// ─── GET /api/admin/questions ──────────────────────────────────────────
+// GET /api/admin/questions
 router.get('/admin/questions', async (req, res) => {
   try {
     const questions = await sql`SELECT * FROM questions ORDER BY created_at ASC`;

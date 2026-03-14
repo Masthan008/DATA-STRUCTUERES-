@@ -3,27 +3,38 @@ import { useAdmin } from '../../context/AdminContext';
 import { Card, CardContent } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
-import { Save, Clock, Monitor, CheckCircle } from 'lucide-react';
+import { Save, Clock, Monitor, CheckCircle, Link, Copy } from 'lucide-react';
 import api from '../../utils/api';
 
 const Settings = () => {
-  const { examSettings, setExamSettings } = useAdmin();
+  const { examSettings, setExamSettings, fetchDashboardData, admin } = useAdmin();
   const [localSettings, setLocalSettings] = useState(examSettings);
   const [saved, setSaved] = useState(false);
 
   const handleSave = async () => {
     try {
       await api.updateSettings({
+        admin_id: admin.id,
         exam_duration: localSettings.duration,
         allowed_device: localSettings.allowedDevice,
         evaluation_mode: localSettings.evaluation_mode || 'auto'
       });
+      setExamSettings(localSettings);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       console.error('Failed to save settings:', err);
+      // Optional: We can show an alert here, but for now we just don't say "Saved successfully"
     }
-    setExamSettings(localSettings);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const [copied, setCopied] = useState(false);
+  const studentLink = admin ? `${window.location.origin}/student/login?admin=${admin.id}` : '';
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(studentLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -32,6 +43,24 @@ const Settings = () => {
         <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
         <p className="text-sm text-slate-500 mt-0.5">Configure exam parameters and access rules</p>
       </div>
+
+      {/* Shareable Student Link */}
+      <Card>
+        <CardContent className="p-6 space-y-3">
+          <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+            <Link size={15} className="text-brand-primary" /> Student Login Link
+          </h3>
+          <p className="text-xs text-slate-500">Share this link with your students. Only students who use this link will be linked to your exam.</p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-mono text-slate-700 truncate">
+              {studentLink}
+            </div>
+            <Button onClick={handleCopy} variant="outline" className="gap-1.5 shrink-0 h-10 text-xs">
+              {copied ? <><CheckCircle size={13} className="text-emerald-500" /> Copied</> : <><Copy size={13} /> Copy</>}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-6 space-y-6">

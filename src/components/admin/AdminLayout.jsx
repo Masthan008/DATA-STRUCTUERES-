@@ -4,7 +4,7 @@ import { Sidebar } from './Sidebar';
 import { useAdmin } from '../../context/AdminContext';
 
 export const AdminLayout = () => {
-  const { adminLoggedIn } = useAdmin();
+  const { adminLoggedIn, admin } = useAdmin();
 
   if (!adminLoggedIn) {
     return <Navigate to="/admin/login" replace />;
@@ -21,8 +21,9 @@ export const AdminLayout = () => {
             <span className="text-xs font-medium text-slate-500">System Online</span>
           </div>
           <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-500 font-medium">{admin?.username}</span>
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-primary to-brand-accent text-white text-xs font-bold flex items-center justify-center">
-              A
+              {admin?.username?.charAt(0)?.toUpperCase() || 'A'}
             </div>
           </div>
         </div>

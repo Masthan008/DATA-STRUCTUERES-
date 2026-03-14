@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useExam } from '../../context/ExamContext';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/Card';
 import { Button } from '../../components/Button';
@@ -11,6 +11,8 @@ import { MonitorX, User, Hash, Monitor, Code2 } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const adminId = searchParams.get('admin');
   const { loginStudent } = useExam();
   const { examSettings } = useAdmin();
   const [deviceAllowed, setDeviceAllowed] = useState(true);
@@ -50,7 +52,6 @@ const Login = () => {
     }
     setError('');
     setLoading(true);
-    
     const result = await loginStudent({ ...formData, device: detectDevice() });
     
     if (result?.error) {
@@ -69,8 +70,8 @@ const Login = () => {
         <div className="w-full max-w-[420px] animate-slide-up">
           {/* Brand Header */}
           <div className="text-center mb-8">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-brand-primary to-brand-accent rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-brand-primary/20">
-              <Code2 size={28} className="text-white" />
+            <div className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-brand-primary/20 overflow-hidden">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
             </div>
             <h1 className="text-2xl font-bold text-slate-900">Secure Exam Portal</h1>
             <p className="text-slate-500 text-sm mt-1">Student Verification</p>

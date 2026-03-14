@@ -28,6 +28,7 @@ const ExamPage = () => {
   const [showViolationModal, setShowViolationModal] = useState(false);
   const [lastViolationMsg, setLastViolationMsg] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [diagnosticsPerQuestion, setDiagnosticsPerQuestion] = useState({});
 
   // Initialize Exam & Load Saved States
   useEffect(() => {
@@ -61,17 +62,20 @@ const ExamPage = () => {
     };
   }, [student, examActive, questions]);
 
-  // Timer Tick
+  // Handle Auto-submit and Timer Clears
+  useEffect(() => {
+    if (examActive && timeRemaining <= 0) {
+      handleSubmitFinalExam();
+    }
+  }, [timeRemaining, examActive]);
+
+  // Timer Tick — only depends on examActive to avoid re-creating the interval every second
   useEffect(() => {
     if (!examActive) return;
 
     const interval = setInterval(() => {
       setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          handleSubmitFinalExam();
-          return 0;
-        }
+        if (prev <= 1) return 0;
         return prev - 1;
       });
     }, 1000);
@@ -95,6 +99,7 @@ const ExamPage = () => {
   const currentQuestionId = questions[activeQuestionIndex]?.id;
   const currentCode = codePerQuestion[currentQuestionId] || DEFAULT_CODE;
   const currentOutput = resultsPerQuestion[currentQuestionId] || null;
+  const currentDiagnostics = diagnosticsPerQuestion[currentQuestionId] || null;
 
   const updateCurrentCode = (newCode) => {
     setCodePerQuestion(prev => ({
@@ -107,48 +112,41 @@ const ExamPage = () => {
     setIsRunning(true);
     
     try {
-      const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_code: currentCode, language_id: 50 })
-      });
-      
-      const data = await response.json();
-      
-      let resData = { time: data.time };
-      
-      if (data.compile_output) {
-        resData.compileError = data.compile_output;
-      } else if (data.stderr) {
-        resData.runtimeError = data.stderr;
-      } else if (data.status?.id === 3) {
-        resData.output = data.stdout || '';
-      } else {
-        resData.runtimeError = data.message || `Runtime Error: ${data.status?.description}`;
+      const data = await api.compile({ source_code: currentCode });
+
+      if (data.error) {
+        setResultsPerQuestion(prev => ({ ...prev, [currentQuestionId]: { runtimeError: data.error } }));
+        setDiagnosticsPerQuestion(prev => ({ ...prev, [currentQuestionId]: null }));
+        return;
       }
-      
-      setResultsPerQuestion(prev => ({
+
+      setResultsPerQuestion(prev => ({ ...prev, [currentQuestionId]: data }));
+
+      // Set inline markers if compile error, clear them on success
+      setDiagnosticsPerQuestion(prev => ({
         ...prev,
-        [currentQuestionId]: resData
+        [currentQuestionId]: data.compileError || null
       }));
-      
+
       // Upsert run count in backend
-      await api.submitCode({
+      const saveRes = await api.submitCode({
         student_id: student.id,
         question_id: currentQuestionId,
         code: currentCode,
-        output: resData.output || resData.compileError || resData.runtimeError,
+        output: data.output || data.compileError || data.runtimeError || '',
         status: statusPerQuestion[currentQuestionId] === 'Submitted' ? 'Submitted' : 'Saved'
       });
+      if (saveRes.error) throw new Error(saveRes.error);
       
       if (statusPerQuestion[currentQuestionId] === 'Not Attempted') {
-        setStatusPerQuestion(prev => ({...prev, [currentQuestionId]: 'Saved'}));
+        setStatusPerQuestion(prev => ({ ...prev, [currentQuestionId]: 'Saved' }));
       }
-
     } catch (error) {
       setResultsPerQuestion(prev => ({
         ...prev,
-        [currentQuestionId]: { runtimeError: 'Failed to connect to compilation server. Check network connection.' }
+        [currentQuestionId]: { 
+          runtimeError: `Failed to reach compiler.\nDetails: ${error.message || 'Check network connection.'}` 
+        }
       }));
     } finally {
       setIsRunning(false);
@@ -158,11 +156,12 @@ const ExamPage = () => {
   const handleSaveCode = async () => {
     setIsRunning(true);
     try {
-      await api.saveCode({
+      const saveRes = await api.saveCode({
         student_id: student.id,
         question_id: currentQuestionId,
         code: currentCode
       });
+      if (saveRes.error) throw new Error(saveRes.error);
       setStatusPerQuestion(prev => ({
         ...prev,
         [currentQuestionId]: 'Saved'
@@ -175,7 +174,7 @@ const ExamPage = () => {
       console.error(err);
       setResultsPerQuestion(prev => ({
         ...prev,
-        [currentQuestionId]: { runtimeError: 'Failed to save code to server.' }
+        [currentQuestionId]: { runtimeError: `Failed to save code to server. \nDetails: ${err.message || ''}` }
       }));
     } finally {
       setIsRunning(false);
@@ -201,16 +200,11 @@ const ExamPage = () => {
         if (testcases.length > 0) {
           let passedCt = 0;
           for (let tc of testcases) {
-            const response = await fetch('https://ce.judge0.com/submissions?base64_encoded=false&wait=true', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ source_code: currentCode, language_id: 50, stdin: tc.input })
-            });
-            const result = await response.json();
+            const result = await api.compile({ source_code: currentCode, stdin: tc.input });
             
-            const actualOut = (result.stdout || '').trim();
+            const actualOut = (result.output || '').trim();
             const expectedOut = (tc.expected_output || '').trim();
-            const passed = (result.status?.id === 3) && (actualOut === expectedOut);
+            const passed = !result.compileError && !result.runtimeError && actualOut === expectedOut;
             
             if (passed) passedCt++;
             
@@ -219,7 +213,7 @@ const ExamPage = () => {
               expected: expectedOut,
               actual: actualOut,
               status: passed ? 'Pass' : 'Fail',
-              error: result.stderr || result.compile_output || null
+              error: result.compileError || result.runtimeError || null
             });
           }
           
@@ -228,15 +222,20 @@ const ExamPage = () => {
         }
       }
 
-      await api.submitCode({
+      const submitRes = await api.submitCode({
         student_id: student.id,
         question_id: currentQuestionId,
         code: currentCode,
-        output: isAutoEval ? (evalDetails.length ? evalDetails[0].actual : currentOutput?.output) : currentOutput?.output,
+        output: isAutoEval ? (
+          evalDetails.length > 0 
+            ? (evalDetails[0].error || evalDetails[0].actual || 'No output produced') 
+            : (currentOutput?.output || currentOutput?.compileError || 'No test cases or zero output')
+        ) : (currentOutput?.output || currentOutput?.compileError),
         status: isAutoEval ? finalStatus : 'Pending Admin Evaluation',
         score: finalScore,
         evaluation_details: evalDetails
       });
+      if (submitRes.error) throw new Error(submitRes.error);
       
       setStatusPerQuestion(prev => ({
         ...prev,
@@ -250,12 +249,17 @@ const ExamPage = () => {
       
     } catch (err) {
       console.error('Submission failed:', err);
+      setResultsPerQuestion(prev => ({
+        ...prev,
+        [currentQuestionId]: { runtimeError: `Submission Failed: ${err.message}` }
+      }));
     } finally {
       setIsRunning(false);
     }
   };
 
   const handleSubmitFinalExam = async () => {
+    if (!student || isRunning) return;
     setIsRunning(true);
     try {
       await api.submitFinalExam(student.id);
@@ -263,6 +267,7 @@ const ExamPage = () => {
       sessionStorage.removeItem('exam_status_state');
       // Keep student in storage to view summary page
       
+      if (endExamSession) endExamSession();
       exitFullscreen();
       navigate('/student/exam-summary');
     } catch (err) {
@@ -403,7 +408,7 @@ const ExamPage = () => {
 
         {/* Right: Editor + Console */}
         <div className="flex-1 flex flex-col h-full bg-[#0d1117] min-w-[400px]">
-          <CodeEditor code={currentCode} setCode={updateCurrentCode} />
+          <CodeEditor code={currentCode} setCode={updateCurrentCode} diagnostics={currentDiagnostics} />
           
           {/* Action Bar */}
           <div className="bg-[#161b22] px-4 py-2 flex justify-between items-center border-t border-[#21262d]">

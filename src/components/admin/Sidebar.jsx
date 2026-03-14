@@ -14,10 +14,10 @@ import { useAdmin } from '../../context/AdminContext';
 
 export const Sidebar = () => {
   const navigate = useNavigate();
-  const { setAdminLoggedIn } = useAdmin();
+  const { logoutAdmin, admin } = useAdmin();
 
   const handleLogout = () => {
-    setAdminLoggedIn(false);
+    logoutAdmin();
     navigate('/admin/login');
   };
 

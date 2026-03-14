@@ -6,7 +6,7 @@ import api from '../../utils/api';
 import { ShieldAlert, LogOut, CheckCircle2, User, Hash, Monitor, Code2, PlaySquare, FileCheck } from 'lucide-react';
 
 const ExamSummary = () => {
-  const { student, logout } = useExam();
+  const { student, logout, examSubmitted } = useExam();
   const navigate = useNavigate();
   const [summary, setSummary] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,6 +29,7 @@ const ExamSummary = () => {
   }, [student]);
 
   if (!student) return <Navigate to="/student/login" replace />;
+  if (!examSubmitted) return <Navigate to="/student/waiting" replace />;
 
   const handleLogout = () => {
     logout();

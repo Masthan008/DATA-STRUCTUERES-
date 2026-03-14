@@ -9,7 +9,7 @@ import api from '../../utils/api';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const { setAdminLoggedIn } = useAdmin();
+  const { setAdmin } = useAdmin();
   const [mode, setMode] = useState('login'); // 'login' or 'signup'
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
@@ -40,8 +40,8 @@ const AdminLogin = () => {
         setMode('login');
         setCredentials({ ...credentials, password: '' });
       } else {
-        await api.adminLogin(credentials.username, credentials.password);
-        setAdminLoggedIn(true);
+        const data = await api.adminLogin(credentials.username, credentials.password);
+        setAdmin(data.admin);
         navigate('/admin/dashboard');
       }
     } catch (err) {
@@ -60,8 +60,8 @@ const AdminLogin = () => {
       <div className="relative z-10 w-full max-w-[420px] animate-slide-up">
         {/* Branding */}
         <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-brand-primary to-brand-accent rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-brand-primary/30">
-            <ShieldCheck size={28} className="text-white" />
+          <div className="mx-auto w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-brand-primary/30 overflow-hidden">
+            <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
           </div>
           <h1 className="text-2xl font-bold text-white">Admin Portal</h1>
           <p className="text-slate-400 text-sm mt-1">

@@ -9,11 +9,16 @@ import { enterFullscreen } from '../../utils/antiCheat';
 
 const WaitingRoom = () => {
   const navigate = useNavigate();
-  const { student, examActive } = useExam();
+  const { student, examActive, examSubmitted } = useExam();
   const [starting, setStarting] = useState(false);
 
   if (!student) {
     return <Navigate to="/student/login" replace />;
+  }
+
+  // Student already submitted — send them to their summary
+  if (examSubmitted) {
+    return <Navigate to="/student/exam-summary" replace />;
   }
 
   const handleStartExam = () => {

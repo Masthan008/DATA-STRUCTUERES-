@@ -1,8 +1,7 @@
-import React from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { Card, CardContent } from '../../components/Card';
 import { Button } from '../../components/Button';
-import { Users, AlertTriangle, Clock, PlayCircle, StopCircle, FileText, Activity } from 'lucide-react';
+import { Users, AlertTriangle, PlayCircle, StopCircle, FileText, Activity } from 'lucide-react';
 
 const AdminDashboard = () => {
   const { students, allViolations, examSettings, updateExamStatus, results } = useAdmin();
@@ -13,38 +12,29 @@ const AdminDashboard = () => {
       value: students.length,
       icon: Users,
       color: 'from-blue-500 to-blue-600',
-      bg: 'bg-blue-50',
-      text: 'text-blue-700',
     },
     {
       label: 'Violations',
       value: allViolations.length,
       icon: AlertTriangle,
       color: 'from-amber-500 to-orange-500',
-      bg: 'bg-amber-50',
-      text: 'text-amber-700',
     },
     {
       label: 'Submissions',
       value: results?.length || 0,
       icon: FileText,
       color: 'from-emerald-500 to-teal-500',
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-700',
     },
     {
       label: 'Exam Status',
       value: examSettings?.exam_active ? 'Active' : 'Inactive',
       icon: Activity,
       color: examSettings?.exam_active ? 'from-emerald-500 to-teal-500' : 'from-slate-400 to-slate-500',
-      bg: examSettings?.exam_active ? 'bg-emerald-50' : 'bg-slate-50',
-      text: examSettings?.exam_active ? 'text-emerald-700' : 'text-slate-500',
     },
   ];
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
@@ -63,7 +53,6 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Stat Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.label} hover className="overflow-hidden">
@@ -80,7 +69,6 @@ const AdminDashboard = () => {
         ))}
       </div>
 
-      {/* Quick Info */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardContent className="p-5">
@@ -112,7 +100,7 @@ const AdminDashboard = () => {
                 {allViolations.slice(0, 4).map((v, i) => (
                   <div key={i} className="flex items-center gap-3 text-sm py-1.5">
                     <div className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                    <span className="text-slate-600 truncate">{v.students?.name || v.student_name || 'Student'} — {v.violation_type}</span>
+                    <span className="text-slate-600 truncate">{v.student_name || 'Student'} — {v.violation_type}</span>
                     <span className="text-xs text-slate-400 ml-auto shrink-0">{new Date(v.timestamp).toLocaleTimeString()}</span>
                   </div>
                 ))}

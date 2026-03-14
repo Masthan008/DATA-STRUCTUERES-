@@ -1,25 +1,26 @@
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 const api = {
   // ─── STUDENT APIs ────────────────────────────────────────────────────
 
-  async studentLogin({ name, regNo, systemNo, device }) {
+  async studentLogin({ name, regNo, systemNo, device, admin_id }) {
     const res = await fetch(`${API_BASE}/student/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, regd_no: regNo, system_no: systemNo, device_type: device })
+      body: JSON.stringify({ name, regd_no: regNo, system_no: systemNo, device_type: device, admin_id })
     });
     return res.json();
   },
 
-  async getExamStatus() {
-    const res = await fetch(`${API_BASE}/exam/status`);
+  async getExamStatus(adminId) {
+    const url = adminId ? `${API_BASE}/exam/status?admin_id=${adminId}` : `${API_BASE}/exam/status`;
+    const res = await fetch(url);
     return res.json();
   },
 
-  async getRandomQuestions(studentId) {
-    const url = studentId ? `${API_BASE}/questions/random?student_id=${studentId}` : `${API_BASE}/questions/random`;
-    const res = await fetch(url);
+  async getRandomQuestions(studentId, adminId) {
+    const params = new URLSearchParams({ ...(studentId && { student_id: studentId }), ...(adminId && { admin_id: adminId }) });
+    const res = await fetch(`${API_BASE}/questions/random?${params}`);
     return res.json();
   },
 
@@ -46,6 +47,15 @@ const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ student_id, question_id, code })
+    });
+    return res.json();
+  },
+
+  async compile({ source_code, stdin = '' }) {
+    const res = await fetch(`${API_BASE}/compile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source_code, stdin })
     });
     return res.json();
   },
@@ -88,74 +98,85 @@ const api = {
     return data;
   },
 
-  async startExam() {
-    const res = await fetch(`${API_BASE}/admin/start-exam`, { method: 'POST' });
+  async startExam(adminId) {
+    const res = await fetch(`${API_BASE}/admin/start-exam`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id: adminId })
+    });
     return res.json();
   },
 
-  async endExam() {
-    const res = await fetch(`${API_BASE}/admin/end-exam`, { method: 'POST' });
+  async endExam(adminId) {
+    const res = await fetch(`${API_BASE}/admin/end-exam`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id: adminId })
+    });
     return res.json();
   },
 
-  async addQuestion({ title, description, sample_input, sample_output }) {
+  async addQuestion({ admin_id, title, description, sample_input, sample_output, question_score }) {
     const res = await fetch(`${API_BASE}/admin/add-question`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description, sample_input, sample_output })
+      body: JSON.stringify({ admin_id, title, description, sample_input, sample_output, question_score })
     });
     return res.json();
   },
 
-  async deleteQuestion(id) {
-    const res = await fetch(`${API_BASE}/admin/delete-question/${id}`, { method: 'DELETE' });
+  async deleteQuestion(id, adminId) {
+    const res = await fetch(`${API_BASE}/admin/delete-question/${id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'x-admin-id': adminId }
+    });
     return res.json();
   },
 
-  async updateSettings({ exam_duration, allowed_device, evaluation_mode }) {
+  async updateSettings({ admin_id, exam_duration, allowed_device, evaluation_mode }) {
     const res = await fetch(`${API_BASE}/admin/update-settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exam_duration, allowed_device, evaluation_mode })
+      body: JSON.stringify({ admin_id, exam_duration, allowed_device, evaluation_mode })
     });
     return res.json();
   },
 
-  async addTestcase({ question_id, input, expected_output, is_hidden }) {
+  async addTestcase({ admin_id, question_id, input, expected_output, is_hidden }) {
     const res = await fetch(`${API_BASE}/admin/add-testcase`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question_id, input, expected_output, is_hidden })
+      body: JSON.stringify({ admin_id, question_id, input, expected_output, is_hidden })
     });
     return res.json();
   },
 
-  async updateSubmission({ id, status, score }) {
+  async updateSubmission({ admin_id, id, status, score }) {
     const res = await fetch(`${API_BASE}/admin/update-submission`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status, score })
+      body: JSON.stringify({ admin_id, id, status, score })
     });
     return res.json();
   },
 
-  async getStudents() {
-    const res = await fetch(`${API_BASE}/admin/students`);
+  async getStudents(adminId) {
+    const res = await fetch(`${API_BASE}/admin/students?admin_id=${adminId}`);
     return res.json();
   },
 
-  async getViolations() {
-    const res = await fetch(`${API_BASE}/admin/violations`);
+  async getViolations(adminId) {
+    const res = await fetch(`${API_BASE}/admin/violations?admin_id=${adminId}`);
     return res.json();
   },
 
-  async getSubmissions() {
-    const res = await fetch(`${API_BASE}/admin/submissions`);
+  async getSubmissions(adminId) {
+    const res = await fetch(`${API_BASE}/admin/submissions?admin_id=${adminId}`);
     return res.json();
   },
 
-  async getQuestions() {
-    const res = await fetch(`${API_BASE}/admin/questions`);
+  async getQuestions(adminId) {
+    const res = await fetch(`${API_BASE}/admin/questions?admin_id=${adminId}`);
     return res.json();
   }
 };
