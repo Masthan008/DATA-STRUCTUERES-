@@ -407,6 +407,19 @@ router.post('/compile', async (req, res) => {
   }
 });
 
+// ─── GET /api/student/status/:id ─────────────────────────────────────
+// Used by ExamContext polling to check if student has been blacklisted
+router.get('/student/status/:id', async (req, res) => {
+  try {
+    const result = await sql`SELECT id, blacklisted, exam_started FROM students WHERE id = ${req.params.id}`;
+    if (result.length === 0) return res.status(404).json({ error: 'Student not found' });
+    res.json(result[0]);
+  } catch (err) {
+    console.error('Student status error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
 // ─── POST /api/student/live-code ──────────────────────────────────────
 // Store student's current code in memory for live admin view
 const liveCodeStore = new Map(); // student_id -> { code, question_title, updated_at }
@@ -424,7 +437,5 @@ router.get('/admin/live-code/:student_id', (req, res) => {
   if (!data) return res.json({ code: '', question_title: '', updated_at: null });
   res.json(data);
 });
-
-export { liveCodeStore };
 
 export default router;

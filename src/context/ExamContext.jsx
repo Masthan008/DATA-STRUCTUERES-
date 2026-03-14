@@ -25,10 +25,24 @@ export const ExamProvider = ({ children }) => {
       const alreadySubmitted = JSON.parse(sessionStorage.getItem('exam_submitted')) || false;
       if (alreadySubmitted) return;
       try {
-        const data = await api.getExamStatus(
-          JSON.parse(sessionStorage.getItem('exam_student'))?.admin_id
-        );
+        const storedStudent = JSON.parse(sessionStorage.getItem('exam_student'));
+        const data = await api.getExamStatus(storedStudent?.admin_id);
         if (data && data.error) return;
+
+        // Check if student has been blacklisted
+        if (storedStudent?.id) {
+          try {
+            const statusRes = await fetch(`/api/student/status/${storedStudent.id}`);
+            const statusData = await statusRes.json();
+            if (statusData.blacklisted) {
+              // Force logout
+              sessionStorage.clear();
+              window.location.href = '/student/login';
+              return;
+            }
+          } catch {}
+        }
+
         if (data && typeof data.exam_active !== 'undefined') {
           if (data.exam_active && !prevExamActive) {
             sessionStorage.removeItem('exam_timeRemaining');

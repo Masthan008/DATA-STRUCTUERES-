@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useExam } from '../../context/ExamContext';
 import { QuestionPanel } from '../../components/exam/QuestionPanel';
@@ -29,6 +29,7 @@ const ExamPage = () => {
   const [lastViolationMsg, setLastViolationMsg] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [diagnosticsPerQuestion, setDiagnosticsPerQuestion] = useState({});
+  const autoSubmitFiredRef = useRef(false);
 
   // Initialize Exam & Load Saved States
   useEffect(() => {
@@ -62,9 +63,10 @@ const ExamPage = () => {
     };
   }, [student, examActive, questions]);
 
-  // Auto-submit on 5+ violations
+  // Auto-submit on 5+ violations — fires only once via ref guard
   useEffect(() => {
-    if (violations.length >= 5 && examActive) {
+    if (violations.length >= 5 && examActive && !autoSubmitFiredRef.current) {
+      autoSubmitFiredRef.current = true;
       setLastViolationMsg('Maximum violations reached. Your exam is being auto-submitted.');
       setShowViolationModal(true);
       setTimeout(() => handleSubmitFinalExam(), 3000);
@@ -95,20 +97,21 @@ const ExamPage = () => {
   // Auto Save + Live Code Push
   useEffect(() => {
     if (!examActive || Object.keys(codePerQuestion).length === 0) return;
+    const qId = questions[activeQuestionIndex]?.id;
     const saveInterval = setInterval(() => {
       sessionStorage.setItem('exam_code_state', JSON.stringify(codePerQuestion));
       sessionStorage.setItem('exam_status_state', JSON.stringify(statusPerQuestion));
       // Push live code to server for admin monitoring
-      if (student?.id && currentQuestionId) {
+      if (student?.id && qId) {
         api.pushLiveCode({
           student_id: student.id,
-          code: codePerQuestion[currentQuestionId] || '',
+          code: codePerQuestion[qId] || '',
           question_title: questions[activeQuestionIndex]?.title || ''
         }).catch(() => {});
       }
     }, 5000);
     return () => clearInterval(saveInterval);
-  }, [codePerQuestion, statusPerQuestion, examActive, currentQuestionId]);
+  }, [codePerQuestion, statusPerQuestion, examActive, activeQuestionIndex]);
 
   if (!student) return <Navigate to="/student/login" replace />;
   if (!examActive) return <Navigate to="/student/waiting" replace />;
