@@ -151,11 +151,11 @@ const api = {
     return res.json();
   },
 
-  async updateSubmission({ admin_id, id, status, score }) {
+  async updateSubmission({ admin_id, id, status, score_awarded }) {
     const res = await fetch(`${API_BASE}/admin/update-submission`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_id, id, status, score })
+      body: JSON.stringify({ admin_id, id, status, score_awarded })
     });
     return res.json();
   },

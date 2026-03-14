@@ -27,13 +27,37 @@ const Results = () => {
   const handleUpdateManual = async () => {
     setIsUpdating(true);
     try {
-      await api.updateSubmission({ id: selectedSub.id, status: manualStatus, score: Number(manualScore) });
-      setResults(results.map(r => r.id === selectedSub.id ? { ...r, status: manualStatus, score: Number(manualScore) } : r));
+      await api.updateSubmission({ id: selectedSub.id, status: manualStatus, score_awarded: Number(manualScore) });
+      setResults(results.map(r => r.id === selectedSub.id
+        ? { ...r, status: manualStatus, score: Number(manualScore), score_awarded: Number(manualScore) }
+        : r
+      ));
       setSelectedSub(null);
     } catch (err) {
       console.error(err);
     }
     setIsUpdating(false);
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['#', 'Student Name', 'Reg No', 'Question', 'Status', 'Score', 'Max Score'];
+    const rows = results.map((r, i) => [
+      i + 1,
+      r.student_name || '',
+      r.regd_no || '',
+      r.question_title || '',
+      r.status || '',
+      r.score_awarded !== null && r.score_awarded !== undefined ? r.score_awarded : (r.score || 0),
+      r.question_max_score || r.question_score || 10
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `exam-results-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -45,7 +69,7 @@ const Results = () => {
             {results.length} submissions evaluated • <span className="font-semibold text-brand-primary">{isManualMode ? 'Manual Grading' : 'Auto Evaluation'}</span>
           </p>
         </div>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="gap-2" onClick={handleExportCSV}>
           <Download size={16} /> Export CSV
         </Button>
       </div>
@@ -87,8 +111,8 @@ const Results = () => {
                 <TableCell className="text-right">
                   <Button variant="ghost" size="sm" onClick={() => {
                     setSelectedSub(res);
-                    setManualScore(res.score || 0);
-                    setManualStatus(res.status);
+                    setManualScore(res.score_awarded !== null && res.score_awarded !== undefined ? res.score_awarded : (res.score || 0));
+                    setManualStatus(res.status || 'Pending');
                   }} className="h-8 group">
                     View <ChevronRight size={14} className="ml-1 opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
                   </Button>
@@ -170,49 +194,44 @@ const Results = () => {
 
             </div>
 
-            {/* Footer Admin controls */}
-            {isManualMode ? (
-              <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-end justify-between rounded-b-2xl">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Manual Status Override</label>
-                    <select 
-                      className="h-10 rounded-lg border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-brand-primary/30 outline-none"
-                      value={manualStatus}
-                      onChange={(e) => setManualStatus(e.target.value)}
-                    >
-                      <option value="PASS">PASS</option>
-                      <option value="PARTIAL">PARTIAL</option>
-                      <option value="FAIL">FAIL</option>
-                      <option value="Pending">Pending</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500 mb-1 block">Score Awarded</label>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="number" 
-                        className="h-10 w-24 rounded-lg border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-brand-primary/30 outline-none"
-                        value={manualScore}
-                        onChange={(e) => setManualScore(e.target.value)}
-                      />
-                      <span className="text-sm font-bold text-slate-500">/ {selectedSub.question_score || 10}</span>
-                    </div>
+            {/* Footer Admin controls — always show manual override */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-end justify-between rounded-b-2xl">
+              <div className="flex items-center gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Status Override</label>
+                  <select 
+                    className="h-10 rounded-lg border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-brand-primary/30 outline-none"
+                    value={manualStatus}
+                    onChange={(e) => setManualStatus(e.target.value)}
+                  >
+                    <option value="PASS">PASS</option>
+                    <option value="PARTIAL">PARTIAL</option>
+                    <option value="FAIL">FAIL</option>
+                    <option value="Pending">Pending</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Score Awarded</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="number" 
+                      min="0"
+                      max={selectedSub.question_score || selectedSub.question_max_score || 10}
+                      className="h-10 w-24 rounded-lg border border-slate-200 px-3 text-sm focus:ring-2 focus:ring-brand-primary/30 outline-none"
+                      value={manualScore}
+                      onChange={(e) => setManualScore(e.target.value)}
+                    />
+                    <span className="text-sm font-bold text-slate-500">/ {selectedSub.question_score || selectedSub.question_max_score || 10}</span>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setSelectedSub(null)}>Cancel</Button>
-                  <Button onClick={handleUpdateManual} disabled={isUpdating}>
-                    {isUpdating ? 'Saving...' : 'Save Grade'}
-                  </Button>
-                </div>
               </div>
-            ) : (
-              <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between rounded-b-2xl">
-                <span className="text-xs text-slate-500 font-medium">Automatic Evaluation Mode active. Scores are determined by Judge0 tests.</span>
-                <Button variant="outline" onClick={() => setSelectedSub(null)}>Close</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setSelectedSub(null)}>Cancel</Button>
+                <Button onClick={handleUpdateManual} disabled={isUpdating}>
+                  {isUpdating ? 'Saving...' : 'Save Grade'}
+                </Button>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}
