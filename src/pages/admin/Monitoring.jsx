@@ -1,14 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../../components/Table';
 import { Card, CardContent } from '../../components/Card';
 import { Button } from '../../components/Button';
-import { Users, Wifi, Ban, Send } from 'lucide-react';
+import { Users, Wifi, Ban, Send, Eye, X, Circle } from 'lucide-react';
 import api from '../../utils/api';
+
+const LiveCodeModal = ({ student, onClose }) => {
+  const [liveData, setLiveData] = useState({ code: '', question_title: '', updated_at: null });
+  const intervalRef = useRef();
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const data = await api.getLiveCode(student.id);
+        setLiveData(data);
+      } catch {}
+    };
+    fetch();
+    intervalRef.current = setInterval(fetch, 3000);
+    return () => clearInterval(intervalRef.current);
+  }, [student.id]);
+
+  const secondsAgo = liveData.updated_at
+    ? Math.round((Date.now() - new Date(liveData.updated_at).getTime()) / 1000)
+    : null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col animate-scale-in">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-100">
+          <div>
+            <h3 className="font-bold text-slate-900 flex items-center gap-2">
+              <Eye size={16} className="text-brand-primary" /> Live Code — {student.name}
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {liveData.question_title && <span className="mr-2">Q: {liveData.question_title}</span>}
+              {secondsAgo !== null && (
+                <span className="flex items-center gap-1 inline-flex">
+                  <Circle size={7} className={secondsAgo < 10 ? 'text-emerald-500 fill-emerald-500' : 'text-amber-400 fill-amber-400'} />
+                  Updated {secondsAgo}s ago
+                </span>
+              )}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+        {/* Code */}
+        <div className="flex-1 overflow-auto bg-[#0d1117] rounded-b-2xl p-4">
+          <pre className="text-xs font-mono text-emerald-300 leading-relaxed whitespace-pre-wrap">
+            {liveData.code || <span className="text-slate-500 italic">No code pushed yet. Updates every 5 seconds.</span>}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Monitoring = () => {
   const { students, setStudents, fetchDashboardData } = useAdmin();
-  const [actionLoading, setActionLoading] = useState(null); // student id being acted on
+  const [actionLoading, setActionLoading] = useState(null);
+  const [liveViewStudent, setLiveViewStudent] = useState(null);
 
   const handleBlacklist = async (student) => {
     setActionLoading(student.id + '_blacklist');
@@ -31,6 +86,8 @@ const Monitoring = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
+      {liveViewStudent && <LiveCodeModal student={liveViewStudent} onClose={() => setLiveViewStudent(null)} />}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Student Monitor</h1>
@@ -57,7 +114,7 @@ const Monitoring = () => {
           </TableHeader>
           <TableBody>
             {students.map((s, i) => (
-              <TableRow key={s.id || i} className={s.blacklisted ? 'bg-red-50/60 opacity-70' : s.violations > 0 ? 'bg-amber-50/40' : ''}>
+              <TableRow key={s.id || i} className={s.blacklisted ? 'bg-red-50/60 opacity-70' : s.violations >= 5 ? 'bg-red-50/40' : s.violations > 0 ? 'bg-amber-50/40' : ''}>
                 <TableCell className="font-mono text-xs text-slate-400">{i + 1}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2.5">
@@ -73,7 +130,9 @@ const Monitoring = () => {
                   <span className="capitalize px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-xs font-medium">{s.device_type || s.device}</span>
                 </TableCell>
                 <TableCell>
-                  {s.violations > 0 ? (
+                  {s.violations >= 5 ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-200 text-red-800">🚨 {s.violations} AUTO-SUBMIT</span>
+                  ) : s.violations > 0 ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">⚠ {s.violations}</span>
                   ) : (
                     <span className="text-emerald-600 text-xs font-semibold">✓ Clean</span>
@@ -89,6 +148,15 @@ const Monitoring = () => {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1.5">
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => setLiveViewStudent(s)}
+                      disabled={!s.exam_started}
+                      className="h-7 text-xs gap-1 text-blue-600 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-30"
+                      title="View live code"
+                    >
+                      <Eye size={12} /> Live Code
+                    </Button>
                     <Button
                       variant="ghost" size="sm"
                       onClick={() => handleForceSubmit(s)}

@@ -407,4 +407,24 @@ router.post('/compile', async (req, res) => {
   }
 });
 
+// ─── POST /api/student/live-code ──────────────────────────────────────
+// Store student's current code in memory for live admin view
+const liveCodeStore = new Map(); // student_id -> { code, question_title, updated_at }
+
+router.post('/student/live-code', async (req, res) => {
+  const { student_id, code, question_title } = req.body;
+  if (!student_id) return res.status(400).json({ error: 'student_id required' });
+  liveCodeStore.set(student_id, { code: code || '', question_title: question_title || '', updated_at: new Date() });
+  res.json({ success: true });
+});
+
+// ─── GET /api/admin/live-code/:student_id ─────────────────────────────
+router.get('/admin/live-code/:student_id', (req, res) => {
+  const data = liveCodeStore.get(req.params.student_id);
+  if (!data) return res.json({ code: '', question_title: '', updated_at: null });
+  res.json(data);
+});
+
+export { liveCodeStore };
+
 export default router;

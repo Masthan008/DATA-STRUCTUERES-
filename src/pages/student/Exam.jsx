@@ -62,6 +62,15 @@ const ExamPage = () => {
     };
   }, [student, examActive, questions]);
 
+  // Auto-submit on 5+ violations
+  useEffect(() => {
+    if (violations.length >= 5 && examActive) {
+      setLastViolationMsg('Maximum violations reached. Your exam is being auto-submitted.');
+      setShowViolationModal(true);
+      setTimeout(() => handleSubmitFinalExam(), 3000);
+    }
+  }, [violations.length]);
+
   // Handle Auto-submit and Timer Clears
   useEffect(() => {
     if (examActive && timeRemaining <= 0) {
@@ -83,15 +92,23 @@ const ExamPage = () => {
     return () => clearInterval(interval);
   }, [examActive]);
 
-  // Auto Save
+  // Auto Save + Live Code Push
   useEffect(() => {
     if (!examActive || Object.keys(codePerQuestion).length === 0) return;
     const saveInterval = setInterval(() => {
       sessionStorage.setItem('exam_code_state', JSON.stringify(codePerQuestion));
       sessionStorage.setItem('exam_status_state', JSON.stringify(statusPerQuestion));
+      // Push live code to server for admin monitoring
+      if (student?.id && currentQuestionId) {
+        api.pushLiveCode({
+          student_id: student.id,
+          code: codePerQuestion[currentQuestionId] || '',
+          question_title: questions[activeQuestionIndex]?.title || ''
+        }).catch(() => {});
+      }
     }, 5000);
     return () => clearInterval(saveInterval);
-  }, [codePerQuestion, statusPerQuestion, examActive]);
+  }, [codePerQuestion, statusPerQuestion, examActive, currentQuestionId]);
 
   if (!student) return <Navigate to="/student/login" replace />;
   if (!examActive) return <Navigate to="/student/waiting" replace />;
@@ -299,7 +316,11 @@ const ExamPage = () => {
             <h3 className="text-lg font-bold text-slate-900">Security Alert</h3>
             <p className="text-slate-500 text-sm">{lastViolationMsg || 'Suspicious activity detected.'}</p>
             
-            {violations.length > 3 && (
+            {violations.length >= 5 ? (
+              <div className="bg-red-100 text-red-800 p-3 rounded-xl text-xs font-semibold border border-red-300">
+                🚨 Auto-submitting exam in 3 seconds due to repeated violations.
+              </div>
+            ) : violations.length > 3 && (
               <div className="bg-red-50 text-red-700 p-3 rounded-xl text-xs font-semibold border border-red-200">
                 ⚠ Multiple violations detected. Your exam will be flagged for review.
               </div>

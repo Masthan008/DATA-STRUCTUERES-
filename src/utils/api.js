@@ -74,6 +74,20 @@ const api = {
     return res.json();
   },
 
+  async pushLiveCode({ student_id, code, question_title }) {
+    const res = await fetch(`${API_BASE}/student/live-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id, code, question_title })
+    });
+    return res.json();
+  },
+
+  async getLiveCode(student_id) {
+    const res = await fetch(`${API_BASE}/admin/live-code/${student_id}`);
+    return res.json();
+  },
+
   // ─── ADMIN APIs ──────────────────────────────────────────────────────
 
   async adminLogin(username, password) {
