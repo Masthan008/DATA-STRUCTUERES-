@@ -155,18 +155,18 @@ router.post('/admin/add-testcase', async (req, res) => {
 // POST /api/admin/update-settings
 router.post('/admin/update-settings', async (req, res) => {
   try {
-    const { admin_id, exam_duration, allowed_device, evaluation_mode, scheduled_start_time } = req.body;
+    const { admin_id, exam_duration, allowed_device, evaluation_mode } = req.body;
     const settings = admin_id
       ? await sql`SELECT id FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`
       : await sql`SELECT id FROM exam_settings LIMIT 1`;
     if (settings.length > 0) {
       if (admin_id) {
-        await sql`UPDATE exam_settings SET exam_duration = ${exam_duration}, allowed_device = ${allowed_device}, evaluation_mode = ${evaluation_mode || 'auto'}, scheduled_start_time = ${scheduled_start_time || null} WHERE admin_id = ${admin_id}`;
+        await sql`UPDATE exam_settings SET exam_duration = ${exam_duration}, allowed_device = ${allowed_device}, evaluation_mode = ${evaluation_mode || 'auto'} WHERE admin_id = ${admin_id}`;
       } else {
-        await sql`UPDATE exam_settings SET exam_duration = ${exam_duration}, allowed_device = ${allowed_device}, evaluation_mode = ${evaluation_mode || 'auto'}, scheduled_start_time = ${scheduled_start_time || null}`;
+        await sql`UPDATE exam_settings SET exam_duration = ${exam_duration}, allowed_device = ${allowed_device}, evaluation_mode = ${evaluation_mode || 'auto'}`;
       }
     } else {
-      await sql`INSERT INTO exam_settings (admin_id, exam_duration, allowed_device, evaluation_mode, scheduled_start_time) VALUES (${admin_id || null}, ${exam_duration}, ${allowed_device}, ${evaluation_mode || 'auto'}, ${scheduled_start_time || null})`;
+      await sql`INSERT INTO exam_settings (admin_id, exam_duration, allowed_device, evaluation_mode) VALUES (${admin_id || null}, ${exam_duration}, ${allowed_device}, ${evaluation_mode || 'auto'})`;
     }
     res.json({ success: true });
   } catch (error) {

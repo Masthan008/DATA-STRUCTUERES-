@@ -174,11 +174,11 @@ const api = {
     return res.json();
   },
 
-  async updateSettings({ admin_id, exam_duration, allowed_device, evaluation_mode, scheduled_start_time }) {
+  async updateSettings({ admin_id, exam_duration, allowed_device, evaluation_mode }) {
     const res = await fetch(`${API_BASE}/admin/update-settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_id, exam_duration, allowed_device, evaluation_mode, scheduled_start_time })
+      body: JSON.stringify({ admin_id, exam_duration, allowed_device, evaluation_mode })
     });
     return res.json();
   },
