@@ -116,11 +116,38 @@ const api = {
     return res.json();
   },
 
-  async addQuestion({ admin_id, title, description, sample_input, sample_output, question_score }) {
+  async addQuestion({ admin_id, title, description, sample_input, sample_output, question_score, difficulty, category, time_limit_seconds }) {
     const res = await fetch(`${API_BASE}/admin/add-question`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_id, title, description, sample_input, sample_output, question_score })
+      body: JSON.stringify({ admin_id, title, description, sample_input, sample_output, question_score, difficulty, category, time_limit_seconds })
+    });
+    return res.json();
+  },
+
+  async bulkImportQuestions({ admin_id, questions }) {
+    const res = await fetch(`${API_BASE}/admin/bulk-import-questions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id, questions })
+    });
+    return res.json();
+  },
+
+  async blacklistStudent({ student_id, blacklisted }) {
+    const res = await fetch(`${API_BASE}/admin/blacklist-student`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id, blacklisted })
+    });
+    return res.json();
+  },
+
+  async forceSubmitStudent(student_id) {
+    const res = await fetch(`${API_BASE}/admin/force-submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id })
     });
     return res.json();
   },
@@ -133,11 +160,11 @@ const api = {
     return res.json();
   },
 
-  async updateSettings({ admin_id, exam_duration, allowed_device, evaluation_mode }) {
+  async updateSettings({ admin_id, exam_duration, allowed_device, evaluation_mode, scheduled_start_time }) {
     const res = await fetch(`${API_BASE}/admin/update-settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_id, exam_duration, allowed_device, evaluation_mode })
+      body: JSON.stringify({ admin_id, exam_duration, allowed_device, evaluation_mode, scheduled_start_time })
     });
     return res.json();
   },

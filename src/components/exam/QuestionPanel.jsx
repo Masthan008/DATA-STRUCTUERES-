@@ -43,10 +43,15 @@ export const QuestionPanel = ({ question }) => {
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-lg font-bold text-slate-900">{question.title}</h2>
         </div>
-        <div className="flex gap-2">
-          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">Easy</span>
+        <div className="flex gap-2 flex-wrap">
+          <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border capitalize ${
+            question.difficulty === 'hard' ? 'bg-red-50 text-red-700 border-red-200' :
+            question.difficulty === 'medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+            'bg-emerald-50 text-emerald-700 border-emerald-200'
+          }`}>{question.difficulty || 'Easy'}</span>
           <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200">{question.question_score || 10} Points</span>
-          <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-xs font-semibold border border-purple-200">Data Structures</span>
+          {question.category && <span className="px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 text-xs font-semibold border border-purple-200">{question.category}</span>}
+          {question.time_limit_seconds && <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-xs font-semibold border border-slate-200">⏱ {question.time_limit_seconds}s</span>}
         </div>
       </div>
 

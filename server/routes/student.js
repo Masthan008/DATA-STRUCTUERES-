@@ -14,6 +14,7 @@ router.post('/student/login', async (req, res) => {
 
     const existing = await sql`SELECT * FROM students WHERE regd_no = ${regd_no}`;
     if (existing.length > 0) {
+      if (existing[0].blacklisted) return res.status(403).json({ error: 'You have been removed from this exam.' });
       return res.json({ student: existing[0], message: 'Session restored.' });
     }
 
@@ -43,6 +44,13 @@ router.get('/exam/status', async (req, res) => {
     const s = settings[0];
     let remaining_time = null;
 
+    // Auto-start if scheduled time has arrived
+    if (!s.exam_active && s.scheduled_start_time && new Date(s.scheduled_start_time) <= new Date()) {
+      await sql`UPDATE exam_settings SET exam_active = true, exam_start_time = ${s.scheduled_start_time}, scheduled_start_time = null WHERE id = ${s.id}`;
+      s.exam_active = true;
+      s.exam_start_time = s.scheduled_start_time;
+    }
+
     if (s.exam_active && s.exam_start_time) {
       const startMs = new Date(s.exam_start_time).getTime();
       const durationMs = s.exam_duration * 60 * 1000;
@@ -60,6 +68,7 @@ router.get('/exam/status', async (req, res) => {
       allowed_device: s.allowed_device,
       exam_start_time: s.exam_start_time,
       evaluation_mode: s.evaluation_mode,
+      scheduled_start_time: s.scheduled_start_time,
       remaining_time
     });
   } catch (error) {

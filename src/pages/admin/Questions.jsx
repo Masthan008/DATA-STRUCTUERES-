@@ -1,18 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { Card, CardContent } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/Table';
-import { Plus, Trash2, X, FileQuestion, Type, FileText, ArrowRightLeft } from 'lucide-react';
+import { Plus, Trash2, X, FileQuestion, Type, ArrowRightLeft, Upload, Clock, Tag, BarChart2 } from 'lucide-react';
 import api from '../../utils/api';
+
+const DIFFICULTIES = ['easy', 'medium', 'hard'];
+const CATEGORIES = ['General', 'Arrays', 'Linked Lists', 'Trees', 'Graphs', 'Sorting', 'Searching', 'Dynamic Programming', 'Recursion', 'Strings', 'Stacks & Queues', 'Hashing'];
+
+const diffColor = (d) => {
+  if (d === 'easy') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (d === 'medium') return 'bg-amber-50 text-amber-700 border-amber-200';
+  return 'bg-red-50 text-red-700 border-red-200';
+};
 
 const QuestionManagement = () => {
   const { questions, setQuestions, admin } = useAdmin();
   const [isAdding, setIsAdding] = useState(false);
-  const [newQuestion, setNewQuestion] = useState({ 
-    title: '', description: '', inputExample: '', outputExample: '', question_score: 10, testCases: [{ input: '', expected_output: '', is_hidden: true }] 
+  const [newQuestion, setNewQuestion] = useState({
+    title: '', description: '', inputExample: '', outputExample: '',
+    question_score: 10, difficulty: 'easy', category: 'General', time_limit_seconds: 120,
+    testCases: [{ input: '', expected_output: '', is_hidden: true }]
   });
+  const [importError, setImportError] = useState('');
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef();
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -23,54 +37,72 @@ const QuestionManagement = () => {
         description: newQuestion.description,
         sample_input: newQuestion.inputExample,
         sample_output: newQuestion.outputExample,
-        question_score: parseInt(newQuestion.question_score, 10) || 10
+        question_score: parseInt(newQuestion.question_score, 10) || 10,
+        difficulty: newQuestion.difficulty,
+        category: newQuestion.category,
+        time_limit_seconds: parseInt(newQuestion.time_limit_seconds, 10) || 120,
       });
       if (data.question) {
         setQuestions([...questions, data.question]);
         for (const tc of newQuestion.testCases) {
           if (tc.input.trim() && tc.expected_output.trim()) {
-             await api.addTestcase({
-               admin_id: admin.id,
-               question_id: data.question.id,
-               input: tc.input,
-               expected_output: tc.expected_output,
-               is_hidden: tc.is_hidden
-             });
+            await api.addTestcase({ admin_id: admin.id, question_id: data.question.id, input: tc.input, expected_output: tc.expected_output, is_hidden: tc.is_hidden });
           }
         }
       }
     } catch (err) {
       console.error('Failed to add question:', err);
     }
-    setNewQuestion({ title: '', description: '', inputExample: '', outputExample: '', question_score: 10, testCases: [{ input: '', expected_output: '', is_hidden: true }] });
+    setNewQuestion({ title: '', description: '', inputExample: '', outputExample: '', question_score: 10, difficulty: 'easy', category: 'General', time_limit_seconds: 120, testCases: [{ input: '', expected_output: '', is_hidden: true }] });
     setIsAdding(false);
   };
 
-  const handleAddTestCase = () => {
-    setNewQuestion(prev => ({
-      ...prev, testCases: [...prev.testCases, { input: '', expected_output: '', is_hidden: true }]
-    }));
-  };
-
-  const handleTestCaseChange = (index, field, value) => {
-    const updated = [...newQuestion.testCases];
-    updated[index][field] = value;
-    setNewQuestion({ ...newQuestion, testCases: updated });
-  };
-
-  const handleRemoveTestCase = (index) => {
-    const updated = [...newQuestion.testCases];
-    updated.splice(index, 1);
-    setNewQuestion({ ...newQuestion, testCases: updated });
-  };
+  const handleAddTestCase = () => setNewQuestion(prev => ({ ...prev, testCases: [...prev.testCases, { input: '', expected_output: '', is_hidden: true }] }));
+  const handleTestCaseChange = (i, field, value) => { const t = [...newQuestion.testCases]; t[i][field] = value; setNewQuestion({ ...newQuestion, testCases: t }); };
+  const handleRemoveTestCase = (i) => { const t = [...newQuestion.testCases]; t.splice(i, 1); setNewQuestion({ ...newQuestion, testCases: t }); };
 
   const handleDelete = async (id) => {
     try {
       await api.deleteQuestion(id, admin.id);
       setQuestions(questions.filter(q => q.id !== id));
+    } catch (err) { console.error(err); }
+  };
+
+  // CSV Import: expected columns: title,description,sample_input,sample_output,question_score,difficulty,category,time_limit_seconds
+  const handleCSVImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportError('');
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const lines = text.trim().split('\n');
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+      const rows = lines.slice(1).map(line => {
+        // Handle quoted CSV fields
+        const vals = [];
+        let cur = '', inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          if (line[i] === '"') { inQ = !inQ; }
+          else if (line[i] === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+          else cur += line[i];
+        }
+        vals.push(cur.trim());
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+        return obj;
+      }).filter(r => r.title);
+
+      if (rows.length === 0) { setImportError('No valid rows found. Check CSV format.'); setImporting(false); return; }
+
+      const result = await api.bulkImportQuestions({ admin_id: admin.id, questions: rows });
+      if (result.inserted) setQuestions(prev => [...prev, ...result.inserted]);
+      else setImportError(result.error || 'Import failed.');
     } catch (err) {
-      console.error('Failed to delete question:', err);
+      setImportError('Failed to parse CSV: ' + err.message);
     }
+    setImporting(false);
+    e.target.value = '';
   };
 
   return (
@@ -80,9 +112,24 @@ const QuestionManagement = () => {
           <h1 className="text-2xl font-bold text-slate-900">Question Bank</h1>
           <p className="text-sm text-slate-500 mt-0.5">{questions.length} questions configured</p>
         </div>
-        <Button onClick={() => setIsAdding(!isAdding)} className="gap-2" variant={isAdding ? 'outline' : 'primary'}>
-          {isAdding ? <><X size={16} /> Cancel</> : <><Plus size={16} /> Add Question</>}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2 text-xs" onClick={() => fileRef.current.click()} disabled={importing}>
+            <Upload size={14} /> {importing ? 'Importing...' : 'Import CSV'}
+          </Button>
+          <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCSVImport} />
+          <Button onClick={() => setIsAdding(!isAdding)} className="gap-2" variant={isAdding ? 'outline' : 'primary'}>
+            {isAdding ? <><X size={16} /> Cancel</> : <><Plus size={16} /> Add Question</>}
+          </Button>
+        </div>
+      </div>
+
+      {importError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">{importError}</div>
+      )}
+
+      {/* CSV format hint */}
+      <div className="text-xs text-slate-400 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 font-mono">
+        CSV format: <span className="text-slate-600">title, description, sample_input, sample_output, question_score, difficulty, category, time_limit_seconds</span>
       </div>
 
       {/* Add Form */}
@@ -96,15 +143,39 @@ const QuestionManagement = () => {
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">Problem Description</label>
                 <textarea required rows="3" className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary focus:outline-none transition-all duration-200 shadow-sm hover:border-slate-300 resize-none" placeholder="Describe the problem..." value={newQuestion.description} onChange={e => setNewQuestion({...newQuestion, description: e.target.value})} />
               </div>
+
+              {/* Difficulty + Category + Time Limit */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700 flex items-center gap-1"><BarChart2 size={13} /> Difficulty</label>
+                  <select className="flex h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-all shadow-sm"
+                    value={newQuestion.difficulty} onChange={e => setNewQuestion({...newQuestion, difficulty: e.target.value})}>
+                    {DIFFICULTIES.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700 flex items-center gap-1"><Tag size={13} /> Category</label>
+                  <select className="flex h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-all shadow-sm"
+                    value={newQuestion.category} onChange={e => setNewQuestion({...newQuestion, category: e.target.value})}>
+                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-semibold text-slate-700 flex items-center gap-1"><Clock size={13} /> Time Limit (sec)</label>
+                  <input type="number" min="10" max="600" className="flex h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-all shadow-sm"
+                    value={newQuestion.time_limit_seconds} onChange={e => setNewQuestion({...newQuestion, time_limit_seconds: e.target.value})} />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <Input icon={ArrowRightLeft} label="Sample Input" required placeholder="e.g., [1,2,3,4,5]" value={newQuestion.inputExample} onChange={e => setNewQuestion({...newQuestion, inputExample: e.target.value})} />
                 <Input icon={ArrowRightLeft} label="Sample Output" required placeholder="e.g., [5,4,3,2,1]" value={newQuestion.outputExample} onChange={e => setNewQuestion({...newQuestion, outputExample: e.target.value})} />
               </div>
-              <div className="w-1/2">
+              <div className="w-1/3">
                 <Input type="number" label="Marks / Score" required placeholder="10" value={newQuestion.question_score} onChange={e => setNewQuestion({...newQuestion, question_score: e.target.value})} />
               </div>
 
-              {/* Test Cases Section */}
+              {/* Test Cases */}
               <div className="pt-4 border-t border-slate-100">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold text-slate-800">Test Cases (for Auto-Evaluation)</h4>
@@ -112,24 +183,21 @@ const QuestionManagement = () => {
                     <Plus size={12} /> Add Case
                   </button>
                 </div>
-                
                 <div className="space-y-3">
                   {newQuestion.testCases.map((tc, idx) => (
-                    <div key={idx} className="flex gap-2 items-start relative group bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div key={idx} className="flex gap-2 items-start bg-slate-50 p-3 rounded-xl border border-slate-200">
                       <div className="flex-1 space-y-3">
                         <Input placeholder="Input Data" value={tc.input} onChange={e => handleTestCaseChange(idx, 'input', e.target.value)} />
                         <Input placeholder="Expected Output" value={tc.expected_output} onChange={e => handleTestCaseChange(idx, 'expected_output', e.target.value)} />
                       </div>
                       <div className="flex flex-col gap-2 pt-1 pl-2 border-l border-slate-200">
-                         <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-500">
-                           <input type="checkbox" checked={tc.is_hidden} onChange={e => handleTestCaseChange(idx, 'is_hidden', e.target.checked)} className="rounded text-brand-primary focus:ring-brand-primary/30" />
-                           Hidden
-                         </label>
-                         {newQuestion.testCases.length > 1 && (
-                           <button type="button" onClick={() => handleRemoveTestCase(idx)} className="text-red-400 hover:text-red-600 self-start mt-2">
-                             <Trash2 size={14} />
-                           </button>
-                         )}
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-500">
+                          <input type="checkbox" checked={tc.is_hidden} onChange={e => handleTestCaseChange(idx, 'is_hidden', e.target.checked)} className="rounded text-brand-primary focus:ring-brand-primary/30" />
+                          Hidden
+                        </label>
+                        {newQuestion.testCases.length > 1 && (
+                          <button type="button" onClick={() => handleRemoveTestCase(idx)} className="text-red-400 hover:text-red-600 self-start mt-2"><Trash2 size={14} /></button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -151,8 +219,9 @@ const QuestionManagement = () => {
             <TableRow>
               <TableHead className="w-8">#</TableHead>
               <TableHead>Title</TableHead>
-              <TableHead>Sample Input</TableHead>
-              <TableHead>Sample Output</TableHead>
+              <TableHead>Difficulty</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Time Limit</TableHead>
               <TableHead>Score</TableHead>
               <TableHead className="w-20 text-right">Action</TableHead>
             </TableRow>
@@ -167,9 +236,20 @@ const QuestionManagement = () => {
                     <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{q.description}</p>
                   </div>
                 </TableCell>
-                <TableCell><code className="text-xs bg-slate-100 px-2 py-0.5 rounded">{q.sample_input || q.inputExample}</code></TableCell>
-                <TableCell><code className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">{q.sample_output || q.outputExample}</code></TableCell>
-                <TableCell><span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{q.question_score || 10}</span></TableCell>
+                <TableCell>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-md border capitalize ${diffColor(q.difficulty || 'easy')}`}>
+                    {q.difficulty || 'easy'}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">{q.category || 'General'}</span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-xs text-slate-500 flex items-center gap-1"><Clock size={11} /> {q.time_limit_seconds || 120}s</span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{q.question_score || 10}</span>
+                </TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="sm" onClick={() => handleDelete(q.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0">
                     <Trash2 size={15} />
@@ -184,7 +264,7 @@ const QuestionManagement = () => {
           <CardContent className="py-12 text-center">
             <FileQuestion size={40} className="mx-auto text-slate-300 mb-3" />
             <p className="text-slate-500 text-sm">No questions added yet</p>
-            <p className="text-slate-400 text-xs mt-1">Click "Add Question" above to get started</p>
+            <p className="text-slate-400 text-xs mt-1">Click "Add Question" or import a CSV to get started</p>
           </CardContent>
         </Card>
       )}

@@ -85,16 +85,39 @@ router.post('/admin/end-exam', async (req, res) => {
 // POST /api/admin/add-question
 router.post('/admin/add-question', async (req, res) => {
   try {
-    const { admin_id, title, description, sample_input, sample_output, question_score } = req.body;
+    const { admin_id, title, description, sample_input, sample_output, question_score, difficulty, category, time_limit_seconds } = req.body;
     if (!title || !description) return res.status(400).json({ error: 'Title and description are required.' });
     const question = await sql`
-      INSERT INTO questions (admin_id, title, description, sample_input, sample_output, question_score)
-      VALUES (${admin_id || null}, ${title}, ${description}, ${sample_input || ''}, ${sample_output || ''}, ${question_score || 10})
+      INSERT INTO questions (admin_id, title, description, sample_input, sample_output, question_score, difficulty, category, time_limit_seconds)
+      VALUES (${admin_id || null}, ${title}, ${description}, ${sample_input || ''}, ${sample_output || ''}, ${question_score || 10}, ${difficulty || 'easy'}, ${category || 'General'}, ${time_limit_seconds || 120})
       RETURNING *
     `;
     res.status(201).json({ question: question[0] });
   } catch (error) {
     console.error('Add question error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// POST /api/admin/bulk-import-questions  (CSV rows sent as JSON array)
+router.post('/admin/bulk-import-questions', async (req, res) => {
+  try {
+    const { admin_id, questions } = req.body;
+    if (!Array.isArray(questions) || questions.length === 0)
+      return res.status(400).json({ error: 'questions array is required.' });
+    const inserted = [];
+    for (const q of questions) {
+      if (!q.title || !q.description) continue;
+      const result = await sql`
+        INSERT INTO questions (admin_id, title, description, sample_input, sample_output, question_score, difficulty, category, time_limit_seconds)
+        VALUES (${admin_id || null}, ${q.title}, ${q.description}, ${q.sample_input || ''}, ${q.sample_output || ''}, ${parseInt(q.question_score) || 10}, ${q.difficulty || 'easy'}, ${q.category || 'General'}, ${parseInt(q.time_limit_seconds) || 120})
+        RETURNING *
+      `;
+      inserted.push(result[0]);
+    }
+    res.status(201).json({ inserted, count: inserted.length });
+  } catch (error) {
+    console.error('Bulk import error:', error);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });
@@ -132,22 +155,48 @@ router.post('/admin/add-testcase', async (req, res) => {
 // POST /api/admin/update-settings
 router.post('/admin/update-settings', async (req, res) => {
   try {
-    const { admin_id, exam_duration, allowed_device, evaluation_mode } = req.body;
+    const { admin_id, exam_duration, allowed_device, evaluation_mode, scheduled_start_time } = req.body;
     const settings = admin_id
       ? await sql`SELECT id FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`
       : await sql`SELECT id FROM exam_settings LIMIT 1`;
     if (settings.length > 0) {
       if (admin_id) {
-        await sql`UPDATE exam_settings SET exam_duration = ${exam_duration}, allowed_device = ${allowed_device}, evaluation_mode = ${evaluation_mode || 'auto'} WHERE admin_id = ${admin_id}`;
+        await sql`UPDATE exam_settings SET exam_duration = ${exam_duration}, allowed_device = ${allowed_device}, evaluation_mode = ${evaluation_mode || 'auto'}, scheduled_start_time = ${scheduled_start_time || null} WHERE admin_id = ${admin_id}`;
       } else {
-        await sql`UPDATE exam_settings SET exam_duration = ${exam_duration}, allowed_device = ${allowed_device}, evaluation_mode = ${evaluation_mode || 'auto'}`;
+        await sql`UPDATE exam_settings SET exam_duration = ${exam_duration}, allowed_device = ${allowed_device}, evaluation_mode = ${evaluation_mode || 'auto'}, scheduled_start_time = ${scheduled_start_time || null}`;
       }
     } else {
-      await sql`INSERT INTO exam_settings (admin_id, exam_duration, allowed_device, evaluation_mode) VALUES (${admin_id || null}, ${exam_duration}, ${allowed_device}, ${evaluation_mode || 'auto'})`;
+      await sql`INSERT INTO exam_settings (admin_id, exam_duration, allowed_device, evaluation_mode, scheduled_start_time) VALUES (${admin_id || null}, ${exam_duration}, ${allowed_device}, ${evaluation_mode || 'auto'}, ${scheduled_start_time || null})`;
     }
     res.json({ success: true });
   } catch (error) {
     console.error('Update settings error:', error);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// POST /api/admin/blacklist-student
+router.post('/admin/blacklist-student', async (req, res) => {
+  try {
+    const { student_id, blacklisted } = req.body;
+    if (!student_id) return res.status(400).json({ error: 'student_id required' });
+    await sql`UPDATE students SET blacklisted = ${blacklisted ?? true} WHERE id = ${student_id}`;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Blacklist error:', err);
+    res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// POST /api/admin/force-submit
+router.post('/admin/force-submit', async (req, res) => {
+  try {
+    const { student_id } = req.body;
+    if (!student_id) return res.status(400).json({ error: 'student_id required' });
+    await sql`UPDATE students SET exam_started = false WHERE id = ${student_id}`;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Force submit error:', err);
     res.status(500).json({ error: 'Internal server error.' });
   }
 });

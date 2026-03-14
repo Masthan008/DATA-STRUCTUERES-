@@ -1,11 +1,33 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '../../components/Table';
 import { Card, CardContent } from '../../components/Card';
-import { Users, Wifi } from 'lucide-react';
+import { Button } from '../../components/Button';
+import { Users, Wifi, Ban, Send } from 'lucide-react';
+import api from '../../utils/api';
 
 const Monitoring = () => {
-  const { students } = useAdmin();
+  const { students, setStudents, fetchDashboardData } = useAdmin();
+  const [actionLoading, setActionLoading] = useState(null); // student id being acted on
+
+  const handleBlacklist = async (student) => {
+    setActionLoading(student.id + '_blacklist');
+    try {
+      await api.blacklistStudent({ student_id: student.id, blacklisted: !student.blacklisted });
+      setStudents(students.map(s => s.id === student.id ? { ...s, blacklisted: !s.blacklisted } : s));
+    } catch (err) { console.error(err); }
+    setActionLoading(null);
+  };
+
+  const handleForceSubmit = async (student) => {
+    if (!window.confirm(`Force-submit exam for ${student.name}? This will end their session.`)) return;
+    setActionLoading(student.id + '_force');
+    try {
+      await api.forceSubmitStudent(student.id);
+      await fetchDashboardData();
+    } catch (err) { console.error(err); }
+    setActionLoading(null);
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
@@ -29,11 +51,13 @@ const Monitoring = () => {
               <TableHead>System</TableHead>
               <TableHead>Device</TableHead>
               <TableHead>Violations</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {students.map((s, i) => (
-              <TableRow key={i} className={s.violations > 0 ? 'bg-red-50/40 hover:bg-red-50/60' : ''}>
+              <TableRow key={s.id || i} className={s.blacklisted ? 'bg-red-50/60 opacity-70' : s.violations > 0 ? 'bg-amber-50/40' : ''}>
                 <TableCell className="font-mono text-xs text-slate-400">{i + 1}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2.5">
@@ -50,12 +74,40 @@ const Monitoring = () => {
                 </TableCell>
                 <TableCell>
                   {s.violations > 0 ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">
-                      ⚠ {s.violations}
-                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">⚠ {s.violations}</span>
                   ) : (
                     <span className="text-emerald-600 text-xs font-semibold">✓ Clean</span>
                   )}
+                </TableCell>
+                <TableCell>
+                  {s.blacklisted
+                    ? <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-200">Blacklisted</span>
+                    : s.exam_started
+                      ? <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">Active</span>
+                      : <span className="text-xs text-slate-400">Inactive</span>
+                  }
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1.5">
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => handleForceSubmit(s)}
+                      disabled={actionLoading === s.id + '_force' || !s.exam_started}
+                      className="h-7 text-xs gap-1 text-amber-600 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-30"
+                      title="Force submit exam"
+                    >
+                      <Send size={12} /> Force Submit
+                    </Button>
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => handleBlacklist(s)}
+                      disabled={actionLoading === s.id + '_blacklist'}
+                      className={`h-7 text-xs gap-1 ${s.blacklisted ? 'text-emerald-600 hover:bg-emerald-50' : 'text-red-500 hover:bg-red-50 hover:text-red-700'}`}
+                      title={s.blacklisted ? 'Remove from blacklist' : 'Blacklist student'}
+                    >
+                      <Ban size={12} /> {s.blacklisted ? 'Unban' : 'Blacklist'}
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
