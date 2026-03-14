@@ -3,7 +3,7 @@ import { useAdmin } from '../../context/AdminContext';
 import { Card, CardContent } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
-import { Save, Clock, Monitor, CheckCircle, Link, Copy, Calendar } from 'lucide-react';
+import { Save, Clock, Monitor, CheckCircle, Link, Copy } from 'lucide-react';
 import api from '../../utils/api';
 
 const Settings = () => {
@@ -31,8 +31,7 @@ const Settings = () => {
         admin_id: admin.id,
         exam_duration: localSettings.duration,
         allowed_device: localSettings.allowedDevice,
-        evaluation_mode: localSettings.evaluation_mode || 'auto',
-        scheduled_start_time: localSettings.scheduled_start_time || null
+        evaluation_mode: localSettings.evaluation_mode || 'auto'
       });
       setExamSettings(localSettings);
       setSaved(true);
@@ -119,19 +118,6 @@ const Settings = () => {
                   <option value="manual">Manual (Admin reviews code)</option>
                 </select>
               </div>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                <Calendar size={14} /> Schedule Auto-Start
-              </label>
-              <input
-                type="datetime-local"
-                className="flex h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary transition-all duration-200 shadow-sm hover:border-slate-300"
-                value={localSettings.scheduled_start_time ? localSettings.scheduled_start_time.slice(0, 16) : ''}
-                onChange={e => updateLocal({ scheduled_start_time: e.target.value ? new Date(e.target.value).toISOString() : null })}
-              />
-              <p className="text-xs text-slate-400 mt-1">Exam auto-starts at this time. Leave blank to start manually.</p>
             </div>
           </div>
           
