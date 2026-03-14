@@ -30,7 +30,7 @@ const distPath = path.join(__dirname, '../dist');
 app.use(express.static(distPath));
 
 // All non-API routes go to React (handles /admin/login, /student/login etc.)
-app.get('*', (req, res) => {
+app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
