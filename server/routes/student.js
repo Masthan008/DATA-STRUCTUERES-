@@ -312,7 +312,7 @@ router.post('/compile', async (req, res) => {
   }
 
   const srcFile = path.join(tmpDir, 'main.c');
-  const outFile = path.join(tmpDir, 'main.exe');
+  const outFile = path.join(tmpDir, process.platform === 'win32' ? 'main.exe' : 'main.out');
 
   try {
     await writeFile(srcFile, source_code, 'utf8');
