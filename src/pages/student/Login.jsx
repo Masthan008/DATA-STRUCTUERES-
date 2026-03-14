@@ -6,7 +6,7 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Navbar } from '../../components/Navbar';
 import { detectDevice, isDeviceAllowed } from '../../utils/deviceDetection';
-import { useAdmin } from '../../context/AdminContext';
+import api from '../../utils/api';
 import { MonitorX, User, Hash, Monitor, Code2 } from 'lucide-react';
 
 const Login = () => {
@@ -14,8 +14,8 @@ const Login = () => {
   const [searchParams] = useSearchParams();
   const adminId = searchParams.get('admin');
   const { loginStudent } = useExam();
-  const { examSettings } = useAdmin();
   const [deviceAllowed, setDeviceAllowed] = useState(true);
+  const [allowedDevice, setAllowedDevice] = useState('desktop');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -26,11 +26,19 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const currentDevice = detectDevice();
-    if (!isDeviceAllowed(currentDevice, examSettings.allowedDevice)) {
-      setDeviceAllowed(false);
-    }
-  }, [examSettings.allowedDevice]);
+    // Fetch exam settings directly — don't rely on AdminContext (admin may not be logged in)
+    api.getExamStatus(adminId).then(data => {
+      if (data && !data.error && data.allowed_device) {
+        setAllowedDevice(data.allowed_device);
+        const currentDevice = detectDevice();
+        if (!isDeviceAllowed(currentDevice, data.allowed_device)) {
+          setDeviceAllowed(false);
+        } else {
+          setDeviceAllowed(true);
+        }
+      }
+    }).catch(() => {});
+  }, [adminId]);
 
   if (!deviceAllowed) {
     return (
@@ -38,7 +46,7 @@ const Login = () => {
         <Card className="w-full max-w-md text-center p-8 animate-scale-in">
           <MonitorX size={48} className="mx-auto text-red-500 mb-4" />
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Device Not Allowed</h2>
-          <p className="text-slate-500">Please use a <span className="font-semibold text-slate-700">{examSettings.allowedDevice}</span> device to access this exam.</p>
+          <p className="text-slate-500">Please use a <span className="font-semibold text-slate-700">{allowedDevice}</span> device to access this exam.</p>
         </Card>
       </div>
     );

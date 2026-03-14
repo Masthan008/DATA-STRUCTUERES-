@@ -28,10 +28,8 @@ const Results = () => {
     setIsUpdating(true);
     try {
       await api.updateSubmission({ id: selectedSub.id, status: manualStatus, score_awarded: Number(manualScore) });
-      setResults(results.map(r => r.id === selectedSub.id
-        ? { ...r, status: manualStatus, score: Number(manualScore), score_awarded: Number(manualScore) }
-        : r
-      ));
+      const updated = { ...selectedSub, status: manualStatus, score: Number(manualScore), score_awarded: Number(manualScore) };
+      setResults(results.map(r => r.id === selectedSub.id ? updated : r));
       setSelectedSub(null);
     } catch (err) {
       console.error(err);
