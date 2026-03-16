@@ -310,25 +310,24 @@ router.post('/compile', async (req, res) => {
   }
 
   const { exec, spawn } = await import('child_process');
-  const { writeFile, unlink, mkdtemp } = await import('fs/promises');
+  const { writeFile, mkdtemp, access, rm } = await import('fs/promises');
   const { tmpdir } = await import('os');
-  const path = await import('path');
+  const { join } = await import('path');
 
-  // Create a unique temp directory for this submission
   let tmpDir;
   try {
-    tmpDir = await mkdtemp(path.join(tmpdir(), 'exam-'));
+    tmpDir = await mkdtemp(join(tmpdir(), 'exam-'));
   } catch (e) {
     return res.status(500).json({ error: 'Failed to create temp directory.' });
   }
 
-  const srcFile = path.join(tmpDir, 'main.c');
-  const outFile = path.join(tmpDir, process.platform === 'win32' ? 'main.exe' : 'main.out');
+  const srcFile = join(tmpDir, 'main.c');
+  const outFile = join(tmpDir, process.platform === 'win32' ? 'main.exe' : 'main.out');
 
   try {
     await writeFile(srcFile, source_code, 'utf8');
 
-    // Step 1: Compile — capture stdout and stderr separately (Windows-safe)
+    // Step 1: Compile
     const compileResult = await new Promise((resolve) => {
       exec(`gcc "${srcFile}" -o "${outFile}" -Wall -lm`, { timeout: 10000 }, (err, stdout, stderr) => {
         resolve({
@@ -338,60 +337,40 @@ router.post('/compile', async (req, res) => {
       });
     });
 
-    if (compileResult.exitCode !== 0 || compileResult.output.trim()) {
-      // Check if the binary was produced despite warnings
-      const { access } = await import('fs/promises');
+    if (compileResult.exitCode !== 0) {
       let binaryExists = false;
       try { await access(outFile); binaryExists = true; } catch {}
-
       if (!binaryExists) {
-        // Real compile error
-        return res.json({ compileError: compileResult.output.trim() });
+        return res.json({ compileError: compileResult.output || 'Compilation failed.' });
       }
-      // Warnings only — continue to run but include warnings
     }
 
     // Step 2: Run with stdin, 5s timeout
     const runResult = await new Promise((resolve) => {
       const start = Date.now();
       const child = spawn(outFile, [], { timeout: 5000 });
-
       let stdout = '';
       let stderr = '';
-
       if (stdin) child.stdin.write(stdin);
       child.stdin.end();
-
       child.stdout.on('data', (d) => { stdout += d.toString(); });
       child.stderr.on('data', (d) => { stderr += d.toString(); });
-
       child.on('close', (code) => {
-        resolve({
-          stdout,
-          stderr,
-          exitCode: code,
-          time: ((Date.now() - start) / 1000).toFixed(3),
-        });
+        resolve({ stdout, stderr, exitCode: code, time: ((Date.now() - start) / 1000).toFixed(3) });
       });
-
       child.on('error', (err) => {
         resolve({ stdout: '', stderr: err.message, exitCode: 1, time: '0' });
       });
     });
 
     const result = { time: runResult.time };
-
     if (runResult.stderr && runResult.stderr.trim()) {
       result.runtimeError = runResult.stderr.trim();
     } else {
       result.output = runResult.stdout;
       if (!runResult.stdout && runResult.exitCode === 0) result.noOutput = true;
     }
-
-    // Include compiler warnings alongside output if any
-    if (compileResult.output.trim()) {
-      result.warnings = compileResult.output.trim();
-    }
+    if (compileResult.output.trim()) result.warnings = compileResult.output.trim();
 
     return res.json(result);
 
@@ -399,11 +378,7 @@ router.post('/compile', async (req, res) => {
     console.error('Compile error:', err);
     return res.status(500).json({ error: `Compiler error: ${err.message}` });
   } finally {
-    // Cleanup temp files
-    try {
-      const { rm } = await import('fs/promises');
-      await rm(tmpDir, { recursive: true, force: true });
-    } catch {}
+    try { await rm(tmpDir, { recursive: true, force: true }); } catch {}
   }
 });
 

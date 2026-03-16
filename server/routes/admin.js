@@ -156,21 +156,33 @@ router.post('/admin/add-testcase', async (req, res) => {
 router.post('/admin/update-settings', async (req, res) => {
   try {
     const { admin_id, exam_duration, allowed_device, evaluation_mode } = req.body;
-    if (!admin_id) return res.status(400).json({ error: 'admin_id required' });
 
-    const existing = await sql`SELECT id FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`;
+    // Try to find row by admin_id first (if column exists), else fall back to any row
+    let existing = [];
+    if (admin_id) {
+      try {
+        existing = await sql`SELECT id FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`;
+      } catch {
+        // admin_id column may not exist yet — fall back
+        existing = await sql`SELECT id FROM exam_settings LIMIT 1`;
+      }
+    } else {
+      existing = await sql`SELECT id FROM exam_settings LIMIT 1`;
+    }
+
     if (existing.length > 0) {
       await sql`
         UPDATE exam_settings
         SET exam_duration = ${exam_duration},
             allowed_device = ${allowed_device},
             evaluation_mode = ${evaluation_mode || 'auto'}
-        WHERE admin_id = ${admin_id}
+        WHERE id = ${existing[0].id}
       `;
     } else {
+      // No row at all — insert one (without admin_id to be safe)
       await sql`
-        INSERT INTO exam_settings (admin_id, exam_duration, allowed_device, evaluation_mode)
-        VALUES (${admin_id}, ${exam_duration}, ${allowed_device}, ${evaluation_mode || 'auto'})
+        INSERT INTO exam_settings (exam_duration, allowed_device, evaluation_mode)
+        VALUES (${exam_duration}, ${allowed_device}, ${evaluation_mode || 'auto'})
       `;
     }
     res.json({ success: true });
