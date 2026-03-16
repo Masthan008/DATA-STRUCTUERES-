@@ -300,6 +300,16 @@ router.get('/student/exam-summary/:id', async (req, res) => {
   }
 });
 
+// ─── GET /api/health/gcc ──────────────────────────────────────────────
+// Test endpoint to verify GCC is installed and working
+router.get('/health/gcc', async (req, res) => {
+  const { exec } = await import('child_process');
+  exec('gcc --version', (err, stdout, stderr) => {
+    if (err) return res.json({ gcc: false, error: err.message, stderr });
+    res.json({ gcc: true, version: (stdout || stderr).split('\n')[0] });
+  });
+});
+
 // ─── POST /api/compile ─────────────────────────────────────────────────
 // Compiles and runs C code locally using the system GCC — no external API needed.
 router.post('/compile', async (req, res) => {
@@ -309,7 +319,7 @@ router.post('/compile', async (req, res) => {
     return res.status(400).json({ error: 'source_code is required.' });
   }
 
-  const { exec, spawn } = await import('child_process');
+  const { exec } = await import('child_process');
   const { writeFile, mkdtemp, access, rm } = await import('fs/promises');
   const { tmpdir } = await import('os');
   const { join } = await import('path');
@@ -322,14 +332,14 @@ router.post('/compile', async (req, res) => {
   }
 
   const srcFile = join(tmpDir, 'main.c');
-  const outFile = join(tmpDir, process.platform === 'win32' ? 'main.exe' : 'main.out');
+  const outFile = join(tmpDir, 'main.out');
 
   try {
     await writeFile(srcFile, source_code, 'utf8');
 
     // Step 1: Compile
     const compileResult = await new Promise((resolve) => {
-      exec(`gcc "${srcFile}" -o "${outFile}" -Wall -lm`, { timeout: 10000 }, (err, stdout, stderr) => {
+      exec(`gcc "${srcFile}" -o "${outFile}" -Wall -lm`, { timeout: 15000 }, (err, stdout, stderr) => {
         resolve({
           exitCode: err ? (err.code || 1) : 0,
           output: (stderr || stdout || '').trim()
@@ -345,21 +355,18 @@ router.post('/compile', async (req, res) => {
       }
     }
 
-    // Step 2: Run with stdin, 5s timeout
+    // Step 2: Run — use exec with stdin piped via shell
     const runResult = await new Promise((resolve) => {
       const start = Date.now();
-      const child = spawn(outFile, [], { timeout: 5000 });
-      let stdout = '';
-      let stderr = '';
-      if (stdin) child.stdin.write(stdin);
-      child.stdin.end();
-      child.stdout.on('data', (d) => { stdout += d.toString(); });
-      child.stderr.on('data', (d) => { stderr += d.toString(); });
-      child.on('close', (code) => {
-        resolve({ stdout, stderr, exitCode: code, time: ((Date.now() - start) / 1000).toFixed(3) });
-      });
-      child.on('error', (err) => {
-        resolve({ stdout: '', stderr: err.message, exitCode: 1, time: '0' });
+      // Use exec so we can pipe stdin easily and avoid spawn permission issues
+      const stdinPart = stdin ? `echo ${JSON.stringify(stdin)} | ` : '';
+      exec(`${stdinPart}"${outFile}"`, { timeout: 6000 }, (err, stdout, stderr) => {
+        const time = ((Date.now() - start) / 1000).toFixed(3);
+        if (err && err.killed) {
+          resolve({ stdout: '', stderr: 'Time limit exceeded (5s)', exitCode: 1, time });
+        } else {
+          resolve({ stdout: stdout || '', stderr: stderr || '', exitCode: err ? (err.code || 1) : 0, time });
+        }
       });
     });
 

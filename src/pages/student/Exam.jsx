@@ -130,42 +130,27 @@ const ExamPage = () => {
 
   const handleRunCode = async () => {
     setIsRunning(true);
+    setResultsPerQuestion(prev => ({ ...prev, [currentQuestionId]: null }));
     
     try {
       const data = await api.compile({ source_code: currentCode });
 
-      if (data.error) {
-        setResultsPerQuestion(prev => ({ ...prev, [currentQuestionId]: { runtimeError: data.error } }));
-        setDiagnosticsPerQuestion(prev => ({ ...prev, [currentQuestionId]: null }));
-        return;
-      }
-
       setResultsPerQuestion(prev => ({ ...prev, [currentQuestionId]: data }));
-
-      // Set inline markers if compile error, clear them on success
       setDiagnosticsPerQuestion(prev => ({
         ...prev,
         [currentQuestionId]: data.compileError || null
       }));
 
-      // Upsert run count in backend
-      const saveRes = await api.submitCode({
-        student_id: student.id,
-        question_id: currentQuestionId,
-        code: currentCode,
-        output: data.output || data.compileError || data.runtimeError || '',
-        status: statusPerQuestion[currentQuestionId] === 'Submitted' ? 'Submitted' : 'Saved'
-      });
-      if (saveRes.error) throw new Error(saveRes.error);
-      
-      if (statusPerQuestion[currentQuestionId] === 'Not Attempted') {
+      // Only update status, don't block on save
+      if (!data.compileError && statusPerQuestion[currentQuestionId] === 'Not Attempted') {
         setStatusPerQuestion(prev => ({ ...prev, [currentQuestionId]: 'Saved' }));
+        api.saveCode({ student_id: student.id, question_id: currentQuestionId, code: currentCode }).catch(() => {});
       }
     } catch (error) {
       setResultsPerQuestion(prev => ({
         ...prev,
         [currentQuestionId]: { 
-          runtimeError: `Failed to reach compiler.\nDetails: ${error.message || 'Check network connection.'}` 
+          runtimeError: `Failed to reach compiler. Details: ${error.message || 'Check network connection.'}` 
         }
       }));
     } finally {
