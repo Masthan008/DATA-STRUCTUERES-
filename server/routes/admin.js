@@ -44,20 +44,13 @@ router.post('/admin/login', async (req, res) => {
 router.post('/admin/start-exam', async (req, res) => {
   try {
     const { admin_id } = req.body;
-    if (admin_id) {
-      const settings = await sql`SELECT id FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`;
-      if (settings.length === 0) {
-        await sql`INSERT INTO exam_settings (admin_id, exam_active, exam_start_time) VALUES (${admin_id}, true, NOW())`;
-      } else {
-        await sql`UPDATE exam_settings SET exam_active = true, exam_start_time = NOW() WHERE admin_id = ${admin_id}`;
-      }
+    if (!admin_id) return res.status(400).json({ error: 'admin_id is required.' });
+
+    const settings = await sql`SELECT id FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`;
+    if (settings.length === 0) {
+      await sql`INSERT INTO exam_settings (admin_id, exam_active, exam_start_time) VALUES (${admin_id}, true, NOW())`;
     } else {
-      const settings = await sql`SELECT id FROM exam_settings LIMIT 1`;
-      if (settings.length === 0) {
-        await sql`INSERT INTO exam_settings (exam_active, exam_start_time) VALUES (true, NOW())`;
-      } else {
-        await sql`UPDATE exam_settings SET exam_active = true, exam_start_time = NOW()`;
-      }
+      await sql`UPDATE exam_settings SET exam_active = true, exam_start_time = NOW() WHERE admin_id = ${admin_id}`;
     }
     res.json({ success: true, message: 'Exam started.' });
   } catch (error) {
@@ -70,11 +63,9 @@ router.post('/admin/start-exam', async (req, res) => {
 router.post('/admin/end-exam', async (req, res) => {
   try {
     const { admin_id } = req.body;
-    if (admin_id) {
-      await sql`UPDATE exam_settings SET exam_active = false WHERE admin_id = ${admin_id}`;
-    } else {
-      await sql`UPDATE exam_settings SET exam_active = false`;
-    }
+    if (!admin_id) return res.status(400).json({ error: 'admin_id is required.' });
+
+    await sql`UPDATE exam_settings SET exam_active = false WHERE admin_id = ${admin_id}`;
     res.json({ success: true, message: 'Exam ended.' });
   } catch (error) {
     console.error('End exam error:', error);
@@ -156,19 +147,9 @@ router.post('/admin/add-testcase', async (req, res) => {
 router.post('/admin/update-settings', async (req, res) => {
   try {
     const { admin_id, exam_duration, allowed_device, evaluation_mode } = req.body;
+    if (!admin_id) return res.status(400).json({ error: 'admin_id is required.' });
 
-    // Try to find row by admin_id first (if column exists), else fall back to any row
-    let existing = [];
-    if (admin_id) {
-      try {
-        existing = await sql`SELECT id FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`;
-      } catch {
-        // admin_id column may not exist yet — fall back
-        existing = await sql`SELECT id FROM exam_settings LIMIT 1`;
-      }
-    } else {
-      existing = await sql`SELECT id FROM exam_settings LIMIT 1`;
-    }
+    const existing = await sql`SELECT id FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`;
 
     if (existing.length > 0) {
       await sql`
@@ -176,13 +157,12 @@ router.post('/admin/update-settings', async (req, res) => {
         SET exam_duration = ${exam_duration},
             allowed_device = ${allowed_device},
             evaluation_mode = ${evaluation_mode || 'auto'}
-        WHERE id = ${existing[0].id}
+        WHERE admin_id = ${admin_id}
       `;
     } else {
-      // No row at all — insert one (without admin_id to be safe)
       await sql`
-        INSERT INTO exam_settings (exam_duration, allowed_device, evaluation_mode)
-        VALUES (${exam_duration}, ${allowed_device}, ${evaluation_mode || 'auto'})
+        INSERT INTO exam_settings (admin_id, exam_duration, allowed_device, evaluation_mode)
+        VALUES (${admin_id}, ${exam_duration}, ${allowed_device}, ${evaluation_mode || 'auto'})
       `;
     }
     res.json({ success: true });

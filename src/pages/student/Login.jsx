@@ -60,7 +60,7 @@ const Login = () => {
     }
     setError('');
     setLoading(true);
-    const result = await loginStudent({ ...formData, device: detectDevice() });
+    const result = await loginStudent({ ...formData, device: detectDevice(), admin_id: adminId });
     
     if (result?.error) {
       setError(result.error);

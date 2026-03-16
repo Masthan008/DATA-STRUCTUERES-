@@ -6,21 +6,25 @@ const router = Router();
 // ─── POST /api/student/login ───────────────────────────────────────────
 router.post('/student/login', async (req, res) => {
   try {
-    const { name, regd_no, system_no, device_type } = req.body;
+    const { name, regd_no, system_no, device_type, admin_id } = req.body;
 
     if (!name || !regd_no || !system_no || !device_type) {
       return res.status(400).json({ error: 'All fields are required.' });
     }
 
-    const existing = await sql`SELECT * FROM students WHERE regd_no = ${regd_no}`;
+    // Scope lookup to admin_id so multiple admins can have students with same regd_no
+    const existing = admin_id
+      ? await sql`SELECT * FROM students WHERE regd_no = ${regd_no} AND admin_id = ${admin_id}`
+      : await sql`SELECT * FROM students WHERE regd_no = ${regd_no} AND admin_id IS NULL`;
+
     if (existing.length > 0) {
       if (existing[0].blacklisted) return res.status(403).json({ error: 'You have been removed from this exam.' });
       return res.json({ student: existing[0], message: 'Session restored.' });
     }
 
     const result = await sql`
-      INSERT INTO students (name, regd_no, system_no, device_type, exam_started, violations)
-      VALUES (${name}, ${regd_no}, ${system_no}, ${device_type}, true, 0)
+      INSERT INTO students (name, regd_no, system_no, device_type, exam_started, violations, admin_id)
+      VALUES (${name}, ${regd_no}, ${system_no}, ${device_type}, true, 0, ${admin_id || null})
       RETURNING *
     `;
     res.status(201).json({ student: result[0], message: 'Login successful.' });

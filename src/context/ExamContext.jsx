@@ -70,10 +70,12 @@ export const ExamProvider = ({ children }) => {
     try {
       const data = await api.studentLogin(details);
       if (data.error) return { error: data.error };
-      setStudent(data.student);
-      const qData = await api.getRandomQuestions(data.student.id, data.student.admin_id);
+      // Ensure admin_id is always present on the stored student object
+      const studentObj = { ...data.student, admin_id: data.student.admin_id || details.admin_id };
+      setStudent(studentObj);
+      const qData = await api.getRandomQuestions(studentObj.id, studentObj.admin_id);
       if (qData.questions) setQuestions(qData.questions);
-      return { student: data.student };
+      return { student: studentObj };
     } catch (err) {
       console.error('Login failed:', err);
       setStudent(details);
