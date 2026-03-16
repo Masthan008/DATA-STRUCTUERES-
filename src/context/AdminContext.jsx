@@ -1,4 +1,4 @@
-﻿import { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect, useRef } from 'react';
 import api from '../utils/api';
 
 const AdminContext = createContext();
@@ -6,41 +6,58 @@ const AdminContext = createContext();
 export const AdminProvider = ({ children }) => {
   const [admin, setAdminState] = useState(null);
   const [adminLoggedIn, setAdminLoggedIn] = useState(false);
-  const [examSettings, setExamSettings] = useState({ duration: 60, allowedDevice: 'desktop', exam_active: false });
+  const [examSettings, setExamSettings] = useState({ duration: 60, allowedDevice: 'desktop', evaluation_mode: 'auto', exam_active: false });
   const [questions, setQuestions] = useState([]);
   const [students, setStudents] = useState([]);
   const [allViolations, setAllViolations] = useState([]);
   const [results, setResults] = useState([]);
 
+  // Ref so interval callbacks always get the latest admin without re-creating the interval
+  const adminRef = useRef(null);
+
   const setAdmin = (adminData) => {
     setAdminState(adminData);
+    adminRef.current = adminData;
     setAdminLoggedIn(!!adminData);
   };
 
   const logoutAdmin = () => {
     setAdminState(null);
+    adminRef.current = null;
     setAdminLoggedIn(false);
   };
 
   const fetchDashboardData = async () => {
-    if (!adminLoggedIn) return;
+    if (!adminRef.current) return;
     try {
-      const statusData = await api.getExamStatus();
+      const adminId = adminRef.current.id;
+      const statusData = await api.getExamStatus(adminId);
       if (statusData && !statusData.error) {
-        setExamSettings({
-          duration: statusData.exam_duration || 60,
-          allowedDevice: statusData.allowed_device || 'desktop',
-          evaluation_mode: statusData.evaluation_mode || 'auto',
-          exam_active: statusData.exam_active || false
+        // Value-equality check — only update state if something actually changed
+        // Normalize types: DB returns strings for numbers sometimes
+        setExamSettings(prev => {
+          const next = {
+            duration: Number(statusData.exam_duration) || 60,
+            allowedDevice: statusData.allowed_device || 'desktop',
+            evaluation_mode: statusData.evaluation_mode || 'auto',
+            exam_active: Boolean(statusData.exam_active)
+          };
+          if (
+            prev.duration === next.duration &&
+            prev.allowedDevice === next.allowedDevice &&
+            prev.evaluation_mode === next.evaluation_mode &&
+            prev.exam_active === next.exam_active
+          ) return prev;
+          return next;
         });
       }
-      const stdData = await api.getStudents();
+      const stdData = await api.getStudents(adminId);
       if (stdData.students) setStudents(stdData.students);
-      const vioData = await api.getViolations();
+      const vioData = await api.getViolations(adminId);
       if (vioData.violations) setAllViolations(vioData.violations);
-      const subData = await api.getSubmissions();
+      const subData = await api.getSubmissions(adminId);
       if (subData.submissions) setResults(subData.submissions);
-      const qData = await api.getQuestions();
+      const qData = await api.getQuestions(adminId);
       if (qData.questions) setQuestions(qData.questions);
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
@@ -56,8 +73,9 @@ export const AdminProvider = ({ children }) => {
 
   const updateExamStatus = async (isActive) => {
     try {
-      if (isActive) await api.startExam();
-      else await api.endExam();
+      const adminId = adminRef.current?.id;
+      if (isActive) await api.startExam(adminId);
+      else await api.endExam(adminId);
       fetchDashboardData();
     } catch (err) {
       console.error('Failed to update exam status:', err);
