@@ -270,14 +270,22 @@ router.get('/student/exam-summary/:id', async (req, res) => {
     if (studentData.length === 0) return res.status(404).json({ error: 'Student not found' });
     const student = studentData[0];
     
+    const validAdminId = student.admin_id && student.admin_id !== 'null' && student.admin_id !== 'undefined' ? student.admin_id : null;
+    
     // Total questions logic: For now we return 4 because getRandomQuestions limits to 4. 
     // Usually it would check the questions table explicitly or get the subset assigned.
-    const questionsAssignedData = await sql`
-      SELECT id FROM questions 
-      WHERE admin_id = ${student.admin_id}
-      ORDER BY MD5(id::text || ${student_id}::text) 
-      LIMIT 4
-    `;
+    const questionsAssignedData = validAdminId
+      ? await sql`
+          SELECT id FROM questions 
+          WHERE admin_id = ${validAdminId}
+          ORDER BY MD5(id::text || ${student_id}::text) 
+          LIMIT 4
+        `
+      : await sql`
+          SELECT id FROM questions 
+          ORDER BY MD5(id::text || ${student_id}::text) 
+          LIMIT 4
+        `;
     const totalQuestions = questionsAssignedData.length;
     
     const attemptsData = await sql`
