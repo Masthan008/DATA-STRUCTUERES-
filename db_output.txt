@@ -1,0 +1,146 @@
+[dotenv@17.3.1] injecting env (2) from server\.env -- tip: ??????  override existing env vars with { override: true }
+Exam Settings: [
+  {
+    id: '069ef64a-afe9-4106-be3c-dfadeb4fc92a',
+    exam_active: false,
+    allowed_device: 'desktop',
+    exam_duration: 60,
+    exam_start_time: null,
+    created_at: 2026-03-16T17:17:53.975Z,
+    evaluation_mode: 'auto',
+    admin_id: null,
+    scheduled_start_time: null
+  },
+  {
+    id: '436a57a6-937f-447f-910f-35702680d34c',
+    exam_active: false,
+    allowed_device: 'desktop',
+    exam_duration: 60,
+    exam_start_time: null,
+    created_at: 2026-03-16T17:18:02.958Z,
+    evaluation_mode: 'manual',
+    admin_id: null,
+    scheduled_start_time: null
+  },
+  {
+    id: '03431d22-15fe-4486-ad71-f3e973596649',
+    exam_active: false,
+    allowed_device: 'both',
+    exam_duration: 60,
+    exam_start_time: null,
+    created_at: 2026-03-16T17:17:21.977Z,
+    evaluation_mode: 'manual',
+    admin_id: null,
+    scheduled_start_time: null
+  },
+  {
+    id: '53554d5d-8d83-4991-adb8-b66d0546567f',
+    exam_active: true,
+    allowed_device: 'desktop',
+    exam_duration: 120,
+    exam_start_time: 2026-03-16T17:22:00.614Z,
+    created_at: 2026-03-16T17:21:37.041Z,
+    evaluation_mode: 'auto',
+    admin_id: '95f5bf6d-eea4-4182-9399-91b9a17e5e5d',
+    scheduled_start_time: null
+  },
+  {
+    id: '3284bf18-c5fb-4ccc-b242-93e99bdb9644',
+    exam_active: false,
+    allowed_device: 'desktop',
+    exam_duration: 120,
+    exam_start_time: null,
+    created_at: 2026-03-16T17:29:38.230Z,
+    evaluation_mode: 'auto',
+    admin_id: null,
+    scheduled_start_time: null
+  },
+  {
+    id: 'e7145f8b-6521-4947-bd11-325fc15b9190',
+    exam_active: true,
+    allowed_device: 'desktop',
+    exam_duration: 60,
+    exam_start_time: 2026-03-17T13:32:55.436Z,
+    created_at: 2026-03-16T17:17:09.730Z,
+    evaluation_mode: 'auto',
+    admin_id: '5eb7bc14-be35-462e-9689-3e9146b8c038',
+    scheduled_start_time: null
+  },
+  {
+    id: '1f4c230a-32b6-4036-b504-88e8276b4310',
+    exam_active: true,
+    allowed_device: 'desktop',
+    exam_duration: 60,
+    exam_start_time: 2026-03-17T13:32:55.436Z,
+    created_at: 2026-03-16T17:17:41.411Z,
+    evaluation_mode: 'manual',
+    admin_id: '5eb7bc14-be35-462e-9689-3e9146b8c038',
+    scheduled_start_time: null
+  },
+  {
+    id: '799fcd59-2743-47fc-9964-eda3077dd94f',
+    exam_active: true,
+    allowed_device: 'both',
+    exam_duration: 104,
+    exam_start_time: 2026-03-17T13:32:55.436Z,
+    created_at: 2026-03-14T19:42:42.668Z,
+    evaluation_mode: 'auto',
+    admin_id: '5eb7bc14-be35-462e-9689-3e9146b8c038',
+    scheduled_start_time: null
+  },
+  {
+    id: '09dd3418-5964-4dcc-85d7-029fdc12ca76',
+    exam_active: true,
+    allowed_device: 'both',
+    exam_duration: 104,
+    exam_start_time: 2026-03-17T13:32:55.436Z,
+    created_at: 2026-03-14T19:42:42.612Z,
+    evaluation_mode: 'manual',
+    admin_id: '5eb7bc14-be35-462e-9689-3e9146b8c038',
+    scheduled_start_time: null
+  },
+  {
+    id: 'fafef623-4658-49eb-bc7d-19476abc39f7',
+    exam_active: true,
+    allowed_device: 'both',
+    exam_duration: 10,
+    exam_start_time: 2026-03-16T17:12:51.018Z,
+    created_at: 2026-03-13T14:26:42.654Z,
+    evaluation_mode: 'manual',
+    admin_id: null,
+    scheduled_start_time: null
+  },
+  {
+    id: '388e01e9-a4f1-4607-a90f-a767182818d7',
+    exam_active: true,
+    allowed_device: 'both',
+    exam_duration: 10,
+    exam_start_time: 2026-03-16T17:12:51.018Z,
+    created_at: 2026-03-16T17:10:46.652Z,
+    evaluation_mode: 'auto',
+    admin_id: null,
+    scheduled_start_time: null
+  }
+]
+Recent Students: [
+  {
+    id: 'f9bf6983-3d53-491c-aca4-2874a7afe5f3',
+    name: 'bhargav',
+    admin_id: null
+  },
+  {
+    id: 'e77c5515-1682-4bc4-b1b3-ffeb68b9124d',
+    name: 'Bhargav',
+    admin_id: null
+  },
+  {
+    id: '0dfc9b32-3242-4333-97cb-392db1d494c0',
+    name: 'Masthan',
+    admin_id: null
+  },
+  {
+    id: '1de00784-900d-4474-b260-32c80a1e1a9d',
+    name: 'Bhargav',
+    admin_id: null
+  }
+]

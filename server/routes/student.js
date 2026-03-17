@@ -12,9 +12,11 @@ router.post('/student/login', async (req, res) => {
       return res.status(400).json({ error: 'All fields are required.' });
     }
 
+    const validAdminId = admin_id && admin_id !== 'null' && admin_id !== 'undefined' ? admin_id : null;
+
     // Scope lookup to admin_id so multiple admins can have students with same regd_no
-    const existing = admin_id
-      ? await sql`SELECT * FROM students WHERE regd_no = ${regd_no} AND admin_id = ${admin_id}`
+    const existing = validAdminId
+      ? await sql`SELECT * FROM students WHERE regd_no = ${regd_no} AND admin_id = ${validAdminId}`
       : await sql`SELECT * FROM students WHERE regd_no = ${regd_no} AND admin_id IS NULL`;
 
     if (existing.length > 0) {
@@ -24,7 +26,7 @@ router.post('/student/login', async (req, res) => {
 
     const result = await sql`
       INSERT INTO students (name, regd_no, system_no, device_type, exam_started, violations, admin_id)
-      VALUES (${name}, ${regd_no}, ${system_no}, ${device_type}, true, 0, ${admin_id || null})
+      VALUES (${name}, ${regd_no}, ${system_no}, ${device_type}, true, 0, ${validAdminId})
       RETURNING *
     `;
     res.status(201).json({ student: result[0], message: 'Login successful.' });
@@ -38,9 +40,9 @@ router.post('/student/login', async (req, res) => {
 router.get('/exam/status', async (req, res) => {
   try {
     const admin_id = req.query.admin_id;
-    const query = admin_id
-      ? sql`SELECT * FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`
-      : sql`SELECT * FROM exam_settings LIMIT 1`;
+    const query = admin_id && admin_id !== 'null' && admin_id !== 'undefined'
+      ? sql`SELECT * FROM exam_settings WHERE admin_id = ${admin_id} ORDER BY created_at DESC LIMIT 1`
+      : sql`SELECT * FROM exam_settings ORDER BY created_at DESC LIMIT 1`;
 
     const settings = await query;
     if (settings.length === 0) return res.json({ exam_active: false });
@@ -57,7 +59,8 @@ router.get('/exam/status', async (req, res) => {
 
     if (s.exam_active && s.exam_start_time) {
       const startMs = new Date(s.exam_start_time).getTime();
-      const durationMs = s.exam_duration * 60 * 1000;
+      const duration = s.exam_duration || 60; // Default to 60 minutes
+      const durationMs = duration * 60 * 1000;
       const nowMs = Date.now();
       remaining_time = Math.max(0, Math.floor((startMs + durationMs - nowMs) / 1000));
       if (remaining_time <= 0) {
@@ -86,8 +89,9 @@ router.get('/questions/random', async (req, res) => {
   try {
     const { student_id, admin_id } = req.query;
     const sid = student_id || 'default';
-    const questions = admin_id
-      ? await sql`SELECT * FROM questions WHERE admin_id = ${admin_id} ORDER BY MD5(id::text || ${sid}::text) LIMIT 4`
+    const validAdminId = admin_id && admin_id !== 'null' && admin_id !== 'undefined' ? admin_id : null;
+    const questions = validAdminId
+      ? await sql`SELECT * FROM questions WHERE admin_id = ${validAdminId} ORDER BY MD5(id::text || ${sid}::text) LIMIT 4`
       : await sql`SELECT * FROM questions ORDER BY MD5(id::text || ${sid}::text) LIMIT 4`;
     res.json({ questions });
   } catch (error) {

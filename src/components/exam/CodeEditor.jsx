@@ -1,5 +1,8 @@
 import React, { useRef, useEffect } from 'react';
-import Editor, { useMonaco } from '@monaco-editor/react';
+import Editor, { useMonaco, loader } from '@monaco-editor/react';
+
+// Configure Monaco to use unpkg to prevent jsdelivr network blocks
+loader.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
 
 // Parse GCC error lines: "path/main.c:10:5: error: message"
 const parseGccMarkers = (text) => {

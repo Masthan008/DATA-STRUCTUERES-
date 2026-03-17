@@ -1,4 +1,4 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import sql from '../db.js';
 
 const router = Router();
@@ -48,7 +48,7 @@ router.post('/admin/start-exam', async (req, res) => {
 
     const settings = await sql`SELECT id FROM exam_settings WHERE admin_id = ${admin_id} LIMIT 1`;
     if (settings.length === 0) {
-      await sql`INSERT INTO exam_settings (admin_id, exam_active, exam_start_time) VALUES (${admin_id}, true, NOW())`;
+      await sql`INSERT INTO exam_settings (admin_id, exam_active, exam_start_time, exam_duration) VALUES (${admin_id}, true, NOW(), 60)`;
     } else {
       await sql`UPDATE exam_settings SET exam_active = true, exam_start_time = NOW() WHERE admin_id = ${admin_id}`;
     }
